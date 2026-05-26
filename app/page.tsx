@@ -30,6 +30,17 @@ export default function Home() {
 
   const bottomRef = useRef<HTMLDivElement>(null)
 
+  // ── Put this INSIDE your component (reactive, not module-level) ──
+const [isMobile, setIsMobile] = useState(
+  typeof window !== "undefined" && window.innerWidth < 768
+)
+
+useEffect(() => {
+  const handler = () => setIsMobile(window.innerWidth < 768)
+  window.addEventListener("resize", handler)
+  return () => window.removeEventListener("resize", handler)
+}, [])
+
   // Auth listener
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -169,188 +180,208 @@ export default function Home() {
   )
 
   // ── MAIN APP ─────────────────────────────────────────────────
-  return (
-    <div style={styles.app}>
-      {/* Sidebar */}
-      <aside style={styles.sidebar}>
-        <div style={styles.sideTop}>
-          <span style={styles.brand}>🤖 CharacterChat</span>
-          <button style={styles.signOutBtn} onClick={() => supabase.auth.signOut()}>Out</button>
-        </div>
-
-        <button style={styles.newBtn} onClick={() => setShowForm(true)}>+ New Character</button>
-
-        <div style={styles.charList}>
-          {charsLoading ? (
-            <p style={styles.dimText}>Loading…</p>
-          ) : characters.length === 0 ? (
-            <p style={styles.dimText}>No characters yet. Create one!</p>
-          ) : characters.map(c => (
-            <div key={c.id}
-              style={{ ...styles.charItem, ...(activeChar?.id === c.id ? styles.charItemActive : {}) }}
-              onClick={() => { setActiveChar(c) }}>
-              <span style={styles.charEmoji}>{c.emoji}</span>
-              <span style={styles.charName}>{c.name}</span>
-              {c.created_by === session.user.id && (
-                <button style={styles.delBtn}
-                  onClick={e => { e.stopPropagation(); deleteCharacter(c.id) }}>✕</button>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <p style={styles.userEmail}>{session.user.email}</p>
-      </aside>
-
-      {/* Main */}
-      <main style={styles.main}>
-        {showForm ? (
-          <div style={styles.formWrap}>
-            <h2 style={styles.formTitle}>Create a Character</h2>
-
-            <label style={styles.label}>Name</label>
-            <input style={styles.input} placeholder="e.g. Socrates"
-              value={newChar.name} onChange={e => setNewChar({ ...newChar, name: e.target.value })} />
-
-            <label style={styles.label}>Pick an Emoji</label>
-            <div style={styles.emojiGrid}>
-              {EMOJIS.map(em => (
-                <button key={em} style={{ ...styles.emojiBtn, ...(newChar.emoji === em ? styles.emojiBtnActive : {}) }}
-                  onClick={() => setNewChar({ ...newChar, emoji: em })}>{em}</button>
-              ))}
-            </div>
-
-            <label style={styles.label}>Personality *</label>
-            <textarea style={styles.textarea} rows={3}
-              placeholder="e.g. A wise ancient Greek philosopher who questions everything through Socratic dialogue"
-              value={newChar.personality} onChange={e => setNewChar({ ...newChar, personality: e.target.value })} />
-
-            <label style={styles.label}>Speaking Style (optional)</label>
-            <input style={styles.input} placeholder="e.g. Uses rhetorical questions, formal and measured tone"
-              value={newChar.speakingStyle} onChange={e => setNewChar({ ...newChar, speakingStyle: e.target.value })} />
-
-            <div style={styles.formBtns}>
-              <button style={styles.cancelBtn} onClick={() => setShowForm(false)}>Cancel</button>
-              <button style={styles.createBtn} onClick={createCharacter} disabled={creating}>
-                {creating ? "Creating…" : "Create & Chat"}
-              </button>
+ return (
+  <div style={styles.app}>
+    {/* ── SIDEBAR ── */}
+    <aside style={styles.sidebar}>
+      {isMobile ? (
+        <>
+          <div style={styles.mobileTopbar}>
+            <span style={styles.brand}>🤖 CharacterChat</span>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <p style={styles.userEmail}>{session.user.email?.split("@")[0]}</p>
+              <button style={styles.signOutBtn} onClick={() => supabase.auth.signOut()}>Out</button>
             </div>
           </div>
-        ) : !activeChar ? (
-          <div style={styles.empty}>
-            <div style={styles.emptyIcon}>💬</div>
-            <p style={styles.emptyText}>Select a character to start chatting,<br />or create your own.</p>
-            <button style={styles.createBtn} onClick={() => setShowForm(true)}>+ New Character</button>
-          </div>
-        ) : (
-          <div style={styles.chatWrap}>
-            <div style={styles.chatHeader}>
-              <span style={{ fontSize: 28 }}>{activeChar.emoji}</span>
-              <div>
-                <div style={styles.chatName}>{activeChar.name}</div>
-                <div style={styles.chatSub}>Your chat is private</div>
+          <div style={styles.charStrip}>
+            {characters.map(c => (
+              <div key={c.id}
+                style={{ ...styles.charPill, ...(activeChar?.id === c.id ? styles.charPillActive : {}) }}
+                onClick={() => setActiveChar(c)}>
+                <span>{c.emoji}</span>
+                <span style={styles.charPillName}>{c.name}</span>
+                {c.created_by === session.user.id && (
+                  <button style={styles.delBtn}
+                    onClick={e => { e.stopPropagation(); deleteCharacter(c.id) }}>✕</button>
+                )}
               </div>
-            </div>
+            ))}
+            <button style={styles.newPillBtn} onClick={() => setShowForm(true)}>+ New</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={styles.sideTop}>
+            <span style={styles.brand}>🤖 CharacterChat</span>
+            <button style={styles.signOutBtn} onClick={() => supabase.auth.signOut()}>Out</button>
+          </div>
+          <button style={styles.newBtn} onClick={() => setShowForm(true)}>+ New Character</button>
+          <div style={styles.charList}>
+            {characters.map(c => (
+              <div key={c.id}
+                style={{ ...styles.charItem, ...(activeChar?.id === c.id ? styles.charItemActive : {}) }}
+                onClick={() => setActiveChar(c)}>
+                <span style={styles.charEmoji}>{c.emoji}</span>
+                <span style={styles.charName}>{c.name}</span>
+                {c.created_by === session.user.id && (
+                  <button style={styles.delBtn}
+                    onClick={e => { e.stopPropagation(); deleteCharacter(c.id) }}>✕</button>
+                )}
+              </div>
+            ))}
+          </div>
+          <p style={styles.userEmail}>{session.user.email}</p>
+        </>
+      )}
+    </aside>  {/* ← closes here, NOT after <main> */}
 
-            <div style={styles.messages}>
-              {messages.length === 0 && (
-                <p style={styles.dimText}>Start the conversation with {activeChar.name}…</p>
-              )}
-              {messages.map((m, i) => (
-                <div key={i} style={{ ...styles.bubble, ...(m.role === "user" ? styles.bubbleUser : styles.bubbleAI) }}>
-                  {m.content}
-                </div>
-              ))}
-              {loading && (
-                <div style={{ ...styles.bubble, ...styles.bubbleAI, opacity: 0.5 }}>
-                  <span style={styles.typing}>●●●</span>
-                </div>
-              )}
-              <div ref={bottomRef} />
-            </div>
-
-            <div style={styles.inputRow}>
-              <input style={styles.chatInput}
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && sendMessage()}
-                placeholder={`Message ${activeChar.name}…`}
-              />
-              <button style={styles.sendBtn} onClick={sendMessage} disabled={loading || !input.trim()}>
-                ↑
-              </button>
+    {/* ── MAIN ── */}
+    <main style={styles.main}>
+      {showForm ? (
+        <div style={styles.formWrap}>
+          <h2 style={styles.formTitle}>Create a Character</h2>
+          <label style={styles.label}>Name</label>
+          <input style={styles.input} placeholder="e.g. Socrates"
+            value={newChar.name} onChange={e => setNewChar({ ...newChar, name: e.target.value })} />
+          <label style={styles.label}>Pick an Emoji</label>
+          <div style={styles.emojiGrid}>
+            {EMOJIS.map(em => (
+              <button key={em} style={{ ...styles.emojiBtn, ...(newChar.emoji === em ? styles.emojiBtnActive : {}) }}
+                onClick={() => setNewChar({ ...newChar, emoji: em })}>{em}</button>
+            ))}
+          </div>
+          <label style={styles.label}>Personality *</label>
+          <textarea style={styles.textarea} rows={3}
+            placeholder="e.g. A wise ancient Greek philosopher who questions everything through Socratic dialogue"
+            value={newChar.personality} onChange={e => setNewChar({ ...newChar, personality: e.target.value })} />
+          <label style={styles.label}>Speaking Style (optional)</label>
+          <input style={styles.input} placeholder="e.g. Uses rhetorical questions, formal and measured tone"
+            value={newChar.speakingStyle} onChange={e => setNewChar({ ...newChar, speakingStyle: e.target.value })} />
+          <div style={styles.formBtns}>
+            <button style={styles.cancelBtn} onClick={() => setShowForm(false)}>Cancel</button>
+            <button style={styles.createBtn} onClick={createCharacter} disabled={creating}>
+              {creating ? "Creating…" : "Create & Chat"}
+            </button>
+          </div>
+        </div>
+      ) : !activeChar ? (
+        <div style={styles.empty}>
+          <div style={styles.emptyIcon}>💬</div>
+          <p style={styles.emptyText}>Select a character to start chatting,<br />or create your own.</p>
+          <button style={styles.createBtn} onClick={() => setShowForm(true)}>+ New Character</button>
+        </div>
+      ) : (
+        <div style={styles.chatWrap}>
+          <div style={styles.chatHeader}>
+            <span style={{ fontSize: 28 }}>{activeChar.emoji}</span>
+            <div>
+              <div style={styles.chatName}>{activeChar.name}</div>
+              <div style={styles.chatSub}>Your chat is private</div>
             </div>
           </div>
-        )}
-      </main>
-    </div>
-  )
-}
+          <div style={styles.messages}>
+            {messages.length === 0 && (
+              <p style={styles.dimText}>Start the conversation with {activeChar.name}…</p>
+            )}
+            {messages.map((m, i) => (
+              <div key={i} style={{ ...styles.bubble, ...(m.role === "user" ? styles.bubbleUser : styles.bubbleAI) }}>
+                {m.content}
+              </div>
+            ))}
+            {loading && (
+              <div style={{ ...styles.bubble, ...styles.bubbleAI, opacity: 0.5 }}>
+                <span style={styles.typing}>●●●</span>
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+          <div style={styles.inputRow}>
+            <input style={styles.chatInput}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && sendMessage()}
+              placeholder={`Message ${activeChar.name}…`}
+            />
+            <button style={styles.sendBtn} onClick={sendMessage} disabled={loading || !input.trim()}>
+              ↑
+            </button>
+          </div>
+        </div>
+      )}
+    </main>  {/* ← closes here */}
 
+  </div>
+)
+}
 // ── STYLES ────────────────────────────────────────────────────
 const styles: Record<string, React.CSSProperties> = {
   // Auth
-  authWrap: { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0f0f0f", fontFamily: "'Georgia', serif" },
-  authCard: { background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 16, padding: "40px 36px", width: 380, display: "flex", flexDirection: "column", gap: 12 },
+  authWrap: { minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0f0f0f", fontFamily: "'Georgia', serif", padding: "16px" },
+  authCard: { background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 16, padding: "40px 28px", width: "100%", maxWidth: 380, display: "flex", flexDirection: "column", gap: 12 },
   authLogo: { fontSize: 40, textAlign: "center" },
   authTitle: { margin: 0, textAlign: "center", fontSize: 24, color: "#f5f5f5", fontWeight: 700 },
   authSub: { margin: 0, textAlign: "center", color: "#666", fontSize: 14 },
   tabRow: { display: "flex", borderRadius: 8, overflow: "hidden", border: "1px solid #2a2a2a" },
   tab: { flex: 1, padding: "10px 0", background: "transparent", border: "none", color: "#888", cursor: "pointer", fontSize: 14 },
   tabActive: { background: "#2a2a2a", color: "#f5f5f5", fontWeight: 600 },
-  authBtn: { padding: "12px 0", background: "#e8ff00", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 15, cursor: "pointer", color: "#0f0f0f", marginTop: 4 },
+  authBtn: { padding: "14px 0", background: "#e8ff00", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 15, cursor: "pointer", color: "#0f0f0f", marginTop: 4 },
   error: { color: "#ff6b6b", fontSize: 13, margin: 0 },
   hint: { color: "#888", fontSize: 12, margin: 0 },
 
   // Layout
-  app: { display: "flex", height: "100vh", background: "#0f0f0f", fontFamily: "'Georgia', serif", color: "#f0f0f0" },
-
-  // Sidebar
-  sidebar: { width: 260, background: "#141414", borderRight: "1px solid #1e1e1e", display: "flex", flexDirection: "column", padding: 16, gap: 12, overflowY: "auto" },
-  sideTop: { display: "flex", justifyContent: "space-between", alignItems: "center" },
-  brand: { fontWeight: 700, fontSize: 15, color: "#f0f0f0" },
-  signOutBtn: { fontSize: 12, background: "transparent", border: "1px solid #333", color: "#888", borderRadius: 6, padding: "4px 10px", cursor: "pointer" },
-  newBtn: { background: "#e8ff00", color: "#0f0f0f", border: "none", borderRadius: 8, padding: "10px 12px", fontWeight: 700, fontSize: 13, cursor: "pointer" },
-  charList: { display: "flex", flexDirection: "column", gap: 4, flex: 1 },
-  charItem: { display: "flex", alignItems: "center", gap: 8, padding: "10px 10px", borderRadius: 8, cursor: "pointer", transition: "background 0.15s" },
-  charItemActive: { background: "#222" },
-  charEmoji: { fontSize: 20, flexShrink: 0 },
-  charName: { flex: 1, fontSize: 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  delBtn: { background: "transparent", border: "none", color: "#555", cursor: "pointer", fontSize: 12, padding: "2px 4px", flexShrink: 0 },
-  userEmail: { fontSize: 11, color: "#444", margin: 0, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-
-  // Main
+  app: { display: "flex", flexDirection: "column", height: "100dvh", background: "#0f0f0f", fontFamily: "'Georgia', serif", color: "#f0f0f0" },
   main: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" },
-  empty: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 },
-  emptyIcon: { fontSize: 56 },
-  emptyText: { color: "#555", textAlign: "center", lineHeight: 1.8, fontSize: 15 },
 
-  // Create form
-  formWrap: { flex: 1, overflowY: "auto", padding: "40px 48px", maxWidth: 560, width: "100%" },
-  formTitle: { fontSize: 22, fontWeight: 700, marginBottom: 24, color: "#f0f0f0" },
-  label: { display: "block", fontSize: 12, color: "#888", marginBottom: 6, marginTop: 16, textTransform: "uppercase", letterSpacing: "0.05em" },
-  input: { width: "100%", padding: "10px 14px", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 14, outline: "none", boxSizing: "border-box" },
-  textarea: { width: "100%", padding: "10px 14px", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 14, outline: "none", resize: "vertical", boxSizing: "border-box", fontFamily: "Georgia, serif" },
-  emojiGrid: { display: "flex", flexWrap: "wrap", gap: 8 },
-  emojiBtn: { fontSize: 22, background: "#1a1a1a", border: "2px solid transparent", borderRadius: 8, padding: "6px 10px", cursor: "pointer" },
-  emojiBtnActive: { borderColor: "#e8ff00" },
-  formBtns: { display: "flex", gap: 12, marginTop: 28 },
-  cancelBtn: { flex: 1, padding: "12px 0", background: "transparent", border: "1px solid #333", borderRadius: 8, color: "#888", cursor: "pointer", fontSize: 14 },
-  createBtn: { flex: 2, padding: "12px 0", background: "#e8ff00", border: "none", borderRadius: 8, fontWeight: 700, color: "#0f0f0f", cursor: "pointer", fontSize: 14 },
+  // Desktop sidebar
+  sidebar: { background: "#141414", flexShrink: 0 },
+  sideTop: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  brand: { fontWeight: 700, fontSize: 16, color: "#f5f5f5" },
+  signOutBtn: { background: "#1e1e1e", border: "1px solid #2a2a2a", color: "#888", fontSize: 12, borderRadius: 6, padding: "4px 8px", cursor: "pointer" },
+  newBtn: { width: "100%", padding: "10px 0", background: "#e8ff00", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer", color: "#0f0f0f", marginBottom: 12 },
+  charList: { display: "flex", flexDirection: "column", gap: 6, flex: 1, overflowY: "auto" },
+  charItem: { display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, cursor: "pointer", background: "#1a1a1a" },
+  charItemActive: { background: "#252525", outline: "1px solid #e8ff0055" },
+  charEmoji: { fontSize: 18, flexShrink: 0 },
+  charName: { fontSize: 14, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  delBtn: { background: "transparent", border: "none", color: "#555", cursor: "pointer", fontSize: 12, padding: "2px 4px", flexShrink: 0 },
+  userEmail: { fontSize: 11, color: "#444", marginTop: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+
+  // Mobile topbar + char strip
+  mobileTopbar: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid #1e1e1e", background: "#141414" },
+  charStrip: { display: "flex", gap: 8, padding: "8px 10px", overflowX: "auto", background: "#141414", borderBottom: "1px solid #1e1e1e" },
+  charPill: { display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 20, whiteSpace: "nowrap", cursor: "pointer", fontSize: 13, flexShrink: 0 },
+  charPillActive: { borderColor: "#e8ff00", color: "#e8ff00" },
+  charPillName: { maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis" },
+  newPillBtn: { display: "flex", alignItems: "center", padding: "6px 12px", background: "transparent", border: "1px dashed #e8ff0055", borderRadius: 20, color: "#e8ff00", fontSize: 13, cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap" },
 
   // Chat
-  chatWrap: { flex: 1, display: "flex", flexDirection: "column", height: "100%" },
-  chatHeader: { display: "flex", alignItems: "center", gap: 14, padding: "16px 24px", borderBottom: "1px solid #1e1e1e" },
-  chatName: { fontWeight: 700, fontSize: 18 },
-  chatSub: { fontSize: 12, color: "#555" },
-  messages: { flex: 1, overflowY: "auto", padding: "24px", display: "flex", flexDirection: "column", gap: 12 },
-  bubble: { maxWidth: "70%", padding: "12px 16px", borderRadius: 14, lineHeight: 1.6, fontSize: 15 },
-  bubbleUser: { background: "#e8ff00", color: "#0f0f0f", alignSelf: "flex-end", borderBottomRightRadius: 4 },
-  bubbleAI: { background: "#1e1e1e", color: "#e8e8e8", alignSelf: "flex-start", borderBottomLeftRadius: 4 },
-  typing: { letterSpacing: 4 },
-  inputRow: { display: "flex", gap: 10, padding: "16px 24px", borderTop: "1px solid #1e1e1e" },
-  chatInput: { flex: 1, padding: "12px 16px", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 24, color: "#f0f0f0", fontSize: 15, outline: "none" },
-  sendBtn: { width: 44, height: 44, borderRadius: "50%", background: "#e8ff00", border: "none", fontSize: 18, cursor: "pointer", color: "#0f0f0f", fontWeight: 700, flexShrink: 0 },
+  chatWrap: { display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" },
+  chatHeader: { display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: "1px solid #1e1e1e", flexShrink: 0 },
+  chatName: { fontSize: 16, fontWeight: 600, color: "#f5f5f5" },
+  chatSub: { fontSize: 11, color: "#555" },
+  messages: { flex: 1, overflowY: "auto", padding: "14px 12px", display: "flex", flexDirection: "column", gap: 10 },
+  bubble: { maxWidth: "82%", padding: "10px 14px", borderRadius: 14, lineHeight: 1.5, fontSize: 14, wordBreak: "break-word" },
+  bubbleUser: { background: "#e8ff00", color: "#0f0f0f", alignSelf: "flex-end", fontWeight: 500 },
+  bubbleAI: { background: "#1a1a1a", color: "#e0e0e0", alignSelf: "flex-start" },
+  inputRow: { display: "flex", gap: 8, padding: "10px 12px", borderTop: "1px solid #1e1e1e", flexShrink: 0, paddingBottom: "max(10px, env(safe-area-inset-bottom))" },
+  chatInput: { flex: 1, padding: "11px 16px", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 24, color: "#f0f0f0", fontSize: 16, outline: "none" },
+  sendBtn: { width: 44, height: 44, borderRadius: "50%", background: "#e8ff00", border: "none", fontSize: 20, cursor: "pointer", color: "#0f0f0f", fontWeight: 700, flexShrink: 0 },
 
-  dimText: { color: "#444", fontSize: 14 },
+  // States
+  empty: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 24 },
+  emptyIcon: { fontSize: 48 },
+  emptyText: { color: "#666", fontSize: 15, textAlign: "center", lineHeight: 1.6 },
+  formWrap: { flex: 1, overflowY: "auto", padding: 20 },
+  formTitle: { fontSize: 20, fontWeight: 700, color: "#f5f5f5", marginBottom: 16 },
+  label: { fontSize: 13, color: "#888", display: "block", marginBottom: 4, marginTop: 12 },
+  input: { width: "100%", padding: "11px 14px", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 10, color: "#f0f0f0", fontSize: 15, outline: "none" },
+  textarea: { width: "100%", padding: "11px 14px", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 10, color: "#f0f0f0", fontSize: 15, outline: "none", resize: "vertical" },
+  emojiGrid: { display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 },
+  emojiBtn: { fontSize: 22, padding: "8px", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, cursor: "pointer" },
+  emojiBtnActive: { borderColor: "#e8ff00", background: "#e8ff0011" },
+  formBtns: { display: "flex", gap: 10, marginTop: 20 },
+  cancelBtn: { flex: 1, padding: "12px 0", background: "transparent", border: "1px solid #2a2a2a", borderRadius: 8, color: "#888", fontSize: 14, cursor: "pointer" },
+  createBtn: { flex: 2, padding: "12px 0", background: "#e8ff00", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: "pointer", color: "#0f0f0f" },
+  dimText: { color: "#555", fontSize: 14 },
+  typing: { letterSpacing: 2, color: "#555" },
 }
