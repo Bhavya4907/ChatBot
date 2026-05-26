@@ -163,14 +163,18 @@ export default function Home() {
     // No need to update state manually — the realtime subscription above catches it
   }
 
-  async function searchUser() {
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("display_name", searchEmail)
-      .single()
-    setSearchResult(data || null)
-  }
+async function searchUser() {
+  if (!searchEmail.trim()) return
+
+  const { data } = await supabase
+    .from("profiles")
+    .select("*")
+    .ilike("email", `%${searchEmail}%`)
+    .neq("user_id", session.user.id)
+    .limit(5)
+
+  setSearchResult(data?.[0] || null)
+}
 
   async function startConversation(otherUserId: string) {
     // Check if conversation already exists
@@ -439,11 +443,14 @@ export default function Home() {
                 </div>
 
                 {searchResult && (
-                  <div style={styles.charItem} onClick={() => startConversation(searchResult.user_id)}>
-                    <span style={styles.charEmoji}>👤</span>
-                    <span style={styles.charName}>{searchResult.display_name}</span>
-                  </div>
-                )}
+  <div style={styles.charItem} onClick={() => startConversation(searchResult.user_id)}>
+    <span style={styles.charEmoji}>👤</span>
+    <div>
+      <span style={styles.charName}>{searchResult.display_name}</span>
+      <span style={{ fontSize: 11, color: "#555", display: "block" }}>{searchResult.email}</span>
+    </div>
+  </div>
+)}
 
                 {conversations.map(c => {
                   const other = c.user1_id === session.user.id ? c.user2 : c.user1
