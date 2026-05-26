@@ -24,6 +24,13 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [charsLoading, setCharsLoading] = useState(true)
 
+  const [conversations, setConversations] = useState<any[]>([])
+  const [activeConvo, setActiveConvo] = useState<any>(null)
+  const [directMessages, setDirectMessages] = useState<any[]>([])
+  const [searchEmail, setSearchEmail] = useState("")
+  const [searchResult, setSearchResult] = useState<any>(null)
+  const [view, setView] = useState<"characters" | "people">("characters")
+
   const [showForm, setShowForm] = useState(false)
   const [newChar, setNewChar] = useState({ name: "", emoji: "🤖", personality: "", speakingStyle: "" })
   const [creating, setCreating] = useState(false)
@@ -32,12 +39,66 @@ export default function Home() {
 
   // ── Put this INSIDE your component (reactive, not module-level) ──
   const [isMobile, setIsMobile] = useState(false)
-useEffect(() => {
-  setIsMobile(window.innerWidth < 768)
-  const handler = () => setIsMobile(window.innerWidth < 768)
-  window.addEventListener("resize", handler)
-  return () => window.removeEventListener("resize", handler)
-}, [])
+  useEffect(() => {
+    setIsMobile(window.innerWidth < 768)
+    const handler = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener("resize", handler)
+    return () => window.removeEventListener("resize", handler)
+  }, [])
+
+  //Load Conversations on Login
+
+  useEffect(() => {
+    if (!session) return
+    async function loadConversations() {
+      const { data } = await supabase
+        .from("conversations")
+        .select(`
+        *,
+        user1:user1_id(id, email),
+        user2:user2_id(id, email)
+      `)
+        .or(`user1_id.eq.${session.user.id},user2_id.eq.${session.user.id}`)
+        .order("created_at", { ascending: false })
+      setConversations(data || [])
+    }
+    loadConversations()
+  }, [session])
+
+
+  //Subscribe to new message
+
+  useEffect(() => {
+    if (!activeConvo) return
+
+    async function loadDirectMessages() {
+      const { data } = await supabase
+        .from("direct_messages")
+        .select("*")
+        .eq("conversation_id", activeConvo.id)
+        .order("created_at", { ascending: true })
+      setDirectMessages(data || [])
+    }
+    loadDirectMessages()
+
+    const channel = supabase
+      .channel(`convo-${activeConvo.id}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "direct_messages",
+        filter: `conversation_id=eq.${activeConvo.id}`
+      }, (payload) => {
+        setDirectMessages(prev => [...prev, payload.new])
+      })
+      .subscribe()
+
+    // ✅ return a sync function, removeChannel is called but promise is ignored
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [activeConvo])
+
 
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 768)
@@ -86,6 +147,57 @@ useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, loading])
 
+  //Send a direct message
+
+  async function sendDirectMessage() {
+    if (!input.trim() || !activeConvo || !session) return
+
+    const msg = {
+      conversation_id: activeConvo.id,
+      sender_id: session.user.id,
+      content: input
+    }
+
+    setInput("")
+    await supabase.from("direct_messages").insert(msg)
+    // No need to update state manually — the realtime subscription above catches it
+  }
+
+  async function searchUser() {
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("display_name", searchEmail)
+      .single()
+    setSearchResult(data || null)
+  }
+
+  async function startConversation(otherUserId: string) {
+    // Check if conversation already exists
+    const { data: existing } = await supabase
+      .from("conversations")
+      .select("*")
+      .or(`and(user1_id.eq.${session.user.id},user2_id.eq.${otherUserId}),and(user1_id.eq.${otherUserId},user2_id.eq.${session.user.id})`)
+      .single()
+
+    if (existing) {
+      setActiveConvo(existing)
+      return
+    }
+
+    // Create new conversation
+    const { data } = await supabase
+      .from("conversations")
+      .insert({ user1_id: session.user.id, user2_id: otherUserId })
+      .select()
+      .single()
+
+    if (data) {
+      setConversations(prev => [data, ...prev])
+      setActiveConvo(data)
+    }
+  }
+
 
   async function handleAuth() {
     setAuthError("")
@@ -100,17 +212,17 @@ useEffect(() => {
 
 
   async function handleGenerateImage() {
-  if (!input.trim() || !activeChar || !session) return
-  setGeneratingImg(true)
-  try {
-    const data = await generateImage(input)
-    const imageMsg = { role: "assistant", content: `[image]:${data.url}`, character_id: activeChar.id, user_id: session.user.id }
-    await supabase.from("messages").insert(imageMsg)
-    setMessages(prev => [...prev, { ...imageMsg, id: "temp-img" }])
-  } finally {
-    setGeneratingImg(false)
+    if (!input.trim() || !activeChar || !session) return
+    setGeneratingImg(true)
+    try {
+      const data = await generateImage(input)
+      const imageMsg = { role: "assistant", content: `[image]:${data.url}`, character_id: activeChar.id, user_id: session.user.id }
+      await supabase.from("messages").insert(imageMsg)
+      setMessages(prev => [...prev, { ...imageMsg, id: "temp-img" }])
+    } finally {
+      setGeneratingImg(false)
+    }
   }
-}
 
   async function sendMessage() {
     if (!input.trim() || !activeChar || loading || !session) return
@@ -257,6 +369,7 @@ useEffect(() => {
                       onClick={e => { e.stopPropagation(); deleteCharacter(c.id) }}>✕</button>
                   )}
                 </div>
+
               ))}
               <button style={styles.newPillBtn} onClick={() => setShowForm(true)}>+ New</button>
             </div>
@@ -282,6 +395,71 @@ useEffect(() => {
                 </div>
               ))}
             </div>
+
+            {/* Toggle tabs */}
+            <div style={styles.viewToggle}>
+              <button
+                style={{ ...styles.toggleBtn, ...(view === "characters" ? styles.toggleActive : {}) }}
+                onClick={() => setView("characters")}>
+                🤖 Characters
+              </button>
+              <button
+                style={{ ...styles.toggleBtn, ...(view === "people" ? styles.toggleActive : {}) }}
+                onClick={() => setView("people")}>
+                👥 People
+              </button>
+            </div>
+
+            {/* List — switches based on view */}
+            {view === "characters" ? (
+              <div style={styles.charList}>
+                {characters.map(c => (
+                  <div key={c.id}
+                    style={{ ...styles.charItem, ...(activeChar?.id === c.id ? styles.charItemActive : {}) }}
+                    onClick={() => setActiveChar(c)}>
+                    <span style={styles.charEmoji}>{c.emoji}</span>
+                    <span style={styles.charName}>{c.name}</span>
+                    {c.created_by === session.user.id && (
+                      <button style={styles.delBtn}
+                        onClick={e => { e.stopPropagation(); deleteCharacter(c.id) }}>✕</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={styles.charList}>
+                <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                  <input style={{ ...styles.input, fontSize: 12, padding: "8px 10px" }}
+                    placeholder="Search by username…"
+                    value={searchEmail}
+                    onChange={e => setSearchEmail(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && searchUser()}
+                  />
+                  <button style={{ ...styles.sendBtn, width: 36, height: 36, fontSize: 14 }} onClick={searchUser}>→</button>
+                </div>
+
+                {searchResult && (
+                  <div style={styles.charItem} onClick={() => startConversation(searchResult.user_id)}>
+                    <span style={styles.charEmoji}>👤</span>
+                    <span style={styles.charName}>{searchResult.display_name}</span>
+                  </div>
+                )}
+
+                {conversations.map(c => {
+                  const other = c.user1_id === session.user.id ? c.user2 : c.user1
+                  return (
+                    <div key={c.id}
+                      style={{ ...styles.charItem, ...(activeConvo?.id === c.id ? styles.charItemActive : {}) }}
+                      onClick={() => setActiveConvo(c)}>
+                      <span style={styles.charEmoji}>👤</span>
+                      <span style={styles.charName}>{other?.email?.split("@")[0]}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <p style={styles.userEmail}>{session.user.email}</p>
             <p style={styles.userEmail}>{session.user.email}</p>
           </>
         )}
@@ -289,92 +467,135 @@ useEffect(() => {
 
       {/* ── MAIN ── */}
       <main style={styles.main}>
-        {showForm ? (
-          <div style={styles.formWrap}>
-            <h2 style={styles.formTitle}>Create a Character</h2>
-            <label style={styles.label}>Name</label>
-            <input style={styles.input} placeholder="e.g. Socrates"
-              value={newChar.name} onChange={e => setNewChar({ ...newChar, name: e.target.value })} />
-            <label style={styles.label}>Pick an Emoji</label>
-            <div style={styles.emojiGrid}>
-              {EMOJIS.map(em => (
-                <button key={em} style={{ ...styles.emojiBtn, ...(newChar.emoji === em ? styles.emojiBtnActive : {}) }}
-                  onClick={() => setNewChar({ ...newChar, emoji: em })}>{em}</button>
-              ))}
-            </div>
-            <label style={styles.label}>Personality *</label>
-            <textarea style={styles.textarea} rows={3}
-              placeholder="e.g. A wise ancient Greek philosopher who questions everything through Socratic dialogue"
-              value={newChar.personality} onChange={e => setNewChar({ ...newChar, personality: e.target.value })} />
-            <label style={styles.label}>Speaking Style (optional)</label>
-            <input style={styles.input} placeholder="e.g. Uses rhetorical questions, formal and measured tone"
-              value={newChar.speakingStyle} onChange={e => setNewChar({ ...newChar, speakingStyle: e.target.value })} />
-            <div style={styles.formBtns}>
-              <button style={styles.cancelBtn} onClick={() => setShowForm(false)}>Cancel</button>
-              <button style={styles.createBtn} onClick={createCharacter} disabled={creating}>
-                {creating ? "Creating…" : "Create & Chat"}
-              </button>
-            </div>
-          </div>
-        ) : !activeChar ? (
-          <div style={styles.empty}>
-            <div style={styles.emptyIcon}>💬</div>
-            <p style={styles.emptyText}>Select a character to start chatting,<br />or create your own.</p>
-            <button style={styles.createBtn} onClick={() => setShowForm(true)}>+ New Character</button>
-          </div>
-        ) : (
+
+        {activeConvo && view !== "characters" ? (
           <div style={styles.chatWrap}>
             <div style={styles.chatHeader}>
-              <span style={{ fontSize: 28 }}>{activeChar.emoji}</span>
+              <span style={{ fontSize: 28 }}>👤</span>
               <div>
-                <div style={styles.chatName}>{activeChar.name}</div>
-                <div style={styles.chatSub}>Your chat is private</div>
+                <div style={styles.chatName}>
+                  {activeConvo.user1_id === session.user.id
+                    ? activeConvo.user2?.email?.split("@")[0]
+                    : activeConvo.user1?.email?.split("@")[0]}
+                </div>
+                <div style={styles.chatSub}>Online</div>
               </div>
             </div>
-            <div style={styles.messages}>
-              {messages.length === 0 && (
-                <p style={styles.dimText}>Start the conversation with {activeChar.name}…</p>
-              )}
-              {messages.map((m, i) => {
-                const isImage = m.content?.startsWith("[image]:")
-                const imageUrl = isImage ? m.content.replace("[image]:", "") : null
 
-                return (
-                  <div key={m.id ?? m.created_at} style={{ ...styles.bubble, ...(m.role === "user" ? styles.bubbleUser : styles.bubbleAI) }}>
-                    {isImage ? (
-                      <img
-                        src={imageUrl}
-                        style={{ width: "100%", maxWidth: 260, borderRadius: 10, display: "block" }}
-                      />
-                    ) : (
-                      m.content
-                    )}
-                  </div>
-                )
-              })}
-              {loading && (
-                <div style={{ ...styles.bubble, ...styles.bubbleAI, opacity: 0.5 }}>
-                  <span style={styles.typing}>●●●</span>
+            <div style={styles.messages}>
+              {directMessages.map((m, i) => (
+                <div key={i} style={{
+                  ...styles.bubble,
+                  ...(m.sender_id === session.user.id ? styles.bubbleUser : styles.bubbleAI)
+                }}>
+                  {m.content}
                 </div>
-              )}
+              ))}
               <div ref={bottomRef} />
             </div>
+
             <div style={styles.inputRow}>
               <input style={styles.chatInput}
                 value={input}
                 onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && sendMessage()}
-                placeholder={`Message ${activeChar.name}…`}
+                onKeyDown={e => e.key === "Enter" && sendDirectMessage()}
+                placeholder="Type a message…"
               />
-              <button style={styles.imgBtn} onClick={() => handleGenerateImage()} disabled={!input.trim() || generatingImg}>
-                {generatingImg ? "⏳" : "🖼️"}
-              </button>
-              <button style={styles.sendBtn} onClick={sendMessage} disabled={loading || !input.trim()}>
+              <button style={styles.sendBtn} onClick={sendDirectMessage} disabled={!input.trim()}>
                 ↑
               </button>
             </div>
           </div>
-        )}
+        )
+
+
+
+          : showForm ? (
+            <div style={styles.formWrap}>
+              <h2 style={styles.formTitle}>Create a Character</h2>
+              <label style={styles.label}>Name</label>
+              <input style={styles.input} placeholder="e.g. Socrates"
+                value={newChar.name} onChange={e => setNewChar({ ...newChar, name: e.target.value })} />
+              <label style={styles.label}>Pick an Emoji</label>
+              <div style={styles.emojiGrid}>
+                {EMOJIS.map(em => (
+                  <button key={em} style={{ ...styles.emojiBtn, ...(newChar.emoji === em ? styles.emojiBtnActive : {}) }}
+                    onClick={() => setNewChar({ ...newChar, emoji: em })}>{em}</button>
+                ))}
+              </div>
+              <label style={styles.label}>Personality *</label>
+              <textarea style={styles.textarea} rows={3}
+                placeholder="e.g."
+                value={newChar.personality} onChange={e => setNewChar({ ...newChar, personality: e.target.value })} />
+              <label style={styles.label}>Speaking Style (optional)</label>
+              <input style={styles.input} placeholder="e.g. Uses rhetorical questions, formal and measured tone"
+                value={newChar.speakingStyle} onChange={e => setNewChar({ ...newChar, speakingStyle: e.target.value })} />
+              <div style={styles.formBtns}>
+                <button style={styles.cancelBtn} onClick={() => setShowForm(false)}>Cancel</button>
+                <button style={styles.createBtn} onClick={createCharacter} disabled={creating}>
+                  {creating ? "Creating…" : "Create & Chat"}
+                </button>
+              </div>
+            </div>
+          ) : !activeChar ? (
+            <div style={styles.empty}>
+              <div style={styles.emptyIcon}>💬</div>
+              <p style={styles.emptyText}>Select a character to start chatting,<br />or create your own.</p>
+              <button style={styles.createBtn} onClick={() => setShowForm(true)}>+ New Character</button>
+            </div>
+          ) : (
+            <div style={styles.chatWrap}>
+              <div style={styles.chatHeader}>
+                <span style={{ fontSize: 28 }}>{activeChar.emoji}</span>
+                <div>
+                  <div style={styles.chatName}>{activeChar.name}</div>
+                  <div style={styles.chatSub}>Your chat is private</div>
+                </div>
+              </div>
+              <div style={styles.messages}>
+                {messages.length === 0 && (
+                  <p style={styles.dimText}>Start the conversation with {activeChar.name}…</p>
+                )}
+                {messages.map((m, i) => {
+                  const isImage = m.content?.startsWith("[image]:")
+                  const imageUrl = isImage ? m.content.replace("[image]:", "") : null
+
+                  return (
+                    <div key={m.id ?? m.created_at} style={{ ...styles.bubble, ...(m.role === "user" ? styles.bubbleUser : styles.bubbleAI) }}>
+                      {isImage ? (
+                        <img
+                          src={imageUrl}
+                          style={{ width: "100%", maxWidth: 260, borderRadius: 10, display: "block" }}
+                        />
+                      ) : (
+                        m.content
+                      )}
+                    </div>
+                  )
+                })}
+                {loading && (
+                  <div style={{ ...styles.bubble, ...styles.bubbleAI, opacity: 0.5 }}>
+                    <span style={styles.typing}>●●●</span>
+                  </div>
+                )}
+                <div ref={bottomRef} />
+              </div>
+              <div style={styles.inputRow}>
+                <input style={styles.chatInput}
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && sendMessage()}
+                  placeholder={`Message ${activeChar.name}…`}
+                />
+                <button style={styles.imgBtn} onClick={() => handleGenerateImage()} disabled={!input.trim() || generatingImg}>
+                  {generatingImg ? "⏳" : "🖼️"}
+                </button>
+                <button style={styles.sendBtn} onClick={sendMessage} disabled={loading || !input.trim()}>
+                  ↑
+                </button>
+              </div>
+            </div>
+          )}
       </main>  {/* ← closes here */}
 
     </div>
@@ -451,4 +672,8 @@ const styles: Record<string, React.CSSProperties> = {
   createBtn: { flex: 2, padding: "12px 0", background: "#e8ff00", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: "pointer", color: "#0f0f0f" },
   dimText: { color: "#555", fontSize: 14 },
   typing: { letterSpacing: 2, color: "#555" },
+
+  viewToggle: { display: "flex", gap: 4, padding: "8px", background: "#1a1a1a", borderRadius: 10, margin: "8px 0" },
+  toggleBtn: { flex: 1, padding: "8px 0", background: "transparent", border: "none", color: "#666", fontSize: 13, cursor: "pointer", borderRadius: 8 },
+  toggleActive: { background: "#2a2a2a", color: "#f5f5f5", fontWeight: 600 },
 }
