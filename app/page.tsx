@@ -7,7 +7,7 @@ const supabase = createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRoeWtnYnJoZmpkbGt1eXN3bWF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3MDkyOTIsImV4cCI6MjA5NTI4NTI5Mn0.gZz_lP56l4xNyFeESJDhtaXbQSksctgFGHr7zTttSQ0"
 )
 
-const EMOJIS = ["🤖","🧙","🦊","🐉","👾","🧠","🕵️","🧜","🦁","🎭","👻","🤡","🧛","🦸","🧝"]
+const EMOJIS = ["🤖", "🧙", "🦊", "🐉", "👾", "🧠", "🕵️", "🧜", "🦁", "🎭", "👻", "🤡", "🧛", "🦸", "🧝"]
 
 export default function Home() {
   const [session, setSession] = useState<any>(null)
@@ -16,7 +16,7 @@ export default function Home() {
   const [password, setPassword] = useState("")
   const [authError, setAuthError] = useState("")
   const [authLoading, setAuthLoading] = useState(false)
-
+  const [generatingImg, setGeneratingImg] = useState(false)
   const [characters, setCharacters] = useState<any[]>([])
   const [activeChar, setActiveChar] = useState<any>(null)
   const [messages, setMessages] = useState<any[]>([])
@@ -31,15 +31,19 @@ export default function Home() {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   // ── Put this INSIDE your component (reactive, not module-level) ──
-const [isMobile, setIsMobile] = useState(
-  typeof window !== "undefined" && window.innerWidth < 768
-)
-
+  const [isMobile, setIsMobile] = useState(false)
 useEffect(() => {
+  setIsMobile(window.innerWidth < 768)
   const handler = () => setIsMobile(window.innerWidth < 768)
   window.addEventListener("resize", handler)
   return () => window.removeEventListener("resize", handler)
 }, [])
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener("resize", handler)
+    return () => window.removeEventListener("resize", handler)
+  }, [])
 
   // Auth listener
   useEffect(() => {
@@ -82,6 +86,7 @@ useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, loading])
 
+
   async function handleAuth() {
     setAuthError("")
     setAuthLoading(true)
@@ -92,6 +97,20 @@ useEffect(() => {
     if (error) setAuthError(error.message)
     setAuthLoading(false)
   }
+
+
+  async function handleGenerateImage() {
+  if (!input.trim() || !activeChar || !session) return
+  setGeneratingImg(true)
+  try {
+    const data = await generateImage(input)
+    const imageMsg = { role: "assistant", content: `[image]:${data.url}`, character_id: activeChar.id, user_id: session.user.id }
+    await supabase.from("messages").insert(imageMsg)
+    setMessages(prev => [...prev, { ...imageMsg, id: "temp-img" }])
+  } finally {
+    setGeneratingImg(false)
+  }
+}
 
   async function sendMessage() {
     if (!input.trim() || !activeChar || loading || !session) return
@@ -117,6 +136,39 @@ useEffect(() => {
     await supabase.from("messages").insert(assistantMsg)
     setMessages(prev => [...prev.filter(m => m.id !== "temp-user"), { ...userMsg }, { ...assistantMsg, id: "temp-ai" }])
     setLoading(false)
+  }
+
+  async function generateImage(promptText: string) {
+    console.log("What is promptText?", typeof promptText, promptText);
+    try {
+      // 1. Pass the correct configuration options to fetch
+      const response = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt: promptText }), // Sends data to your route.js
+      });
+
+      // 2. Check for HTTP errors first (like 404, 405, 500)
+      if (!response.ok) {
+        throw new Error(`Server returned status: ${response.status}`);
+      }
+
+      // 3. Safe check for empty response bodies
+      const text = await response.text();
+      if (!text) {
+        throw new Error("Server returned an empty response body instead of JSON.");
+      }
+
+      // 4. Parse safely now that we know text exists
+      const data = JSON.parse(text);
+      return data;
+
+    } catch (error) {
+      console.error("Failed to generate image:", error);
+      throw error; // Re-throw so your UI component knows the action failed
+    }
   }
 
   async function createCharacter() {
@@ -154,7 +206,7 @@ useEffect(() => {
         <p style={styles.authSub}>Talk to AI personas. Build your own.</p>
 
         <div style={styles.tabRow}>
-          {(["login","signup"] as const).map(m => (
+          {(["login", "signup"] as const).map(m => (
             <button key={m} onClick={() => { setAuthMode(m); setAuthError("") }}
               style={{ ...styles.tab, ...(authMode === m ? styles.tabActive : {}) }}>
               {m === "login" ? "Sign In" : "Sign Up"}
@@ -180,138 +232,153 @@ useEffect(() => {
   )
 
   // ── MAIN APP ─────────────────────────────────────────────────
- return (
-  <div style={styles.app}>
-    {/* ── SIDEBAR ── */}
-    <aside style={styles.sidebar}>
-      {isMobile ? (
-        <>
-          <div style={styles.mobileTopbar}>
-            <span style={styles.brand}>🤖 CharacterChat</span>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <p style={styles.userEmail}>{session.user.email?.split("@")[0]}</p>
+  return (
+    <div style={styles.app}>
+      {/* ── SIDEBAR ── */}
+      <aside style={styles.sidebar}>
+        {isMobile ? (
+          <>
+            <div style={styles.mobileTopbar}>
+              <span style={styles.brand}>🤖 CharacterChat</span>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <p style={styles.userEmail}>{session.user.email?.split("@")[0]}</p>
+                <button style={styles.signOutBtn} onClick={() => supabase.auth.signOut()}>Out</button>
+              </div>
+            </div>
+            <div style={styles.charStrip}>
+              {characters.map(c => (
+                <div key={c.id}
+                  style={{ ...styles.charPill, ...(activeChar?.id === c.id ? styles.charPillActive : {}) }}
+                  onClick={() => setActiveChar(c)}>
+                  <span>{c.emoji}</span>
+                  <span style={styles.charPillName}>{c.name}</span>
+                  {c.created_by === session.user.id && (
+                    <button style={styles.delBtn}
+                      onClick={e => { e.stopPropagation(); deleteCharacter(c.id) }}>✕</button>
+                  )}
+                </div>
+              ))}
+              <button style={styles.newPillBtn} onClick={() => setShowForm(true)}>+ New</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={styles.sideTop}>
+              <span style={styles.brand}>🤖 CharacterChat</span>
               <button style={styles.signOutBtn} onClick={() => supabase.auth.signOut()}>Out</button>
             </div>
-          </div>
-          <div style={styles.charStrip}>
-            {characters.map(c => (
-              <div key={c.id}
-                style={{ ...styles.charPill, ...(activeChar?.id === c.id ? styles.charPillActive : {}) }}
-                onClick={() => setActiveChar(c)}>
-                <span>{c.emoji}</span>
-                <span style={styles.charPillName}>{c.name}</span>
-                {c.created_by === session.user.id && (
-                  <button style={styles.delBtn}
-                    onClick={e => { e.stopPropagation(); deleteCharacter(c.id) }}>✕</button>
-                )}
-              </div>
-            ))}
-            <button style={styles.newPillBtn} onClick={() => setShowForm(true)}>+ New</button>
-          </div>
-        </>
-      ) : (
-        <>
-          <div style={styles.sideTop}>
-            <span style={styles.brand}>🤖 CharacterChat</span>
-            <button style={styles.signOutBtn} onClick={() => supabase.auth.signOut()}>Out</button>
-          </div>
-          <button style={styles.newBtn} onClick={() => setShowForm(true)}>+ New Character</button>
-          <div style={styles.charList}>
-            {characters.map(c => (
-              <div key={c.id}
-                style={{ ...styles.charItem, ...(activeChar?.id === c.id ? styles.charItemActive : {}) }}
-                onClick={() => setActiveChar(c)}>
-                <span style={styles.charEmoji}>{c.emoji}</span>
-                <span style={styles.charName}>{c.name}</span>
-                {c.created_by === session.user.id && (
-                  <button style={styles.delBtn}
-                    onClick={e => { e.stopPropagation(); deleteCharacter(c.id) }}>✕</button>
-                )}
-              </div>
-            ))}
-          </div>
-          <p style={styles.userEmail}>{session.user.email}</p>
-        </>
-      )}
-    </aside>  {/* ← closes here, NOT after <main> */}
+            <button style={styles.newBtn} onClick={() => setShowForm(true)}>+ New Character</button>
+            <div style={styles.charList}>
+              {characters.map(c => (
+                <div key={c.id}
+                  style={{ ...styles.charItem, ...(activeChar?.id === c.id ? styles.charItemActive : {}) }}
+                  onClick={() => setActiveChar(c)}>
+                  <span style={styles.charEmoji}>{c.emoji}</span>
+                  <span style={styles.charName}>{c.name}</span>
+                  {c.created_by === session.user.id && (
+                    <button style={styles.delBtn}
+                      onClick={e => { e.stopPropagation(); deleteCharacter(c.id) }}>✕</button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p style={styles.userEmail}>{session.user.email}</p>
+          </>
+        )}
+      </aside>  {/* ← closes here, NOT after <main> */}
 
-    {/* ── MAIN ── */}
-    <main style={styles.main}>
-      {showForm ? (
-        <div style={styles.formWrap}>
-          <h2 style={styles.formTitle}>Create a Character</h2>
-          <label style={styles.label}>Name</label>
-          <input style={styles.input} placeholder="e.g. Socrates"
-            value={newChar.name} onChange={e => setNewChar({ ...newChar, name: e.target.value })} />
-          <label style={styles.label}>Pick an Emoji</label>
-          <div style={styles.emojiGrid}>
-            {EMOJIS.map(em => (
-              <button key={em} style={{ ...styles.emojiBtn, ...(newChar.emoji === em ? styles.emojiBtnActive : {}) }}
-                onClick={() => setNewChar({ ...newChar, emoji: em })}>{em}</button>
-            ))}
-          </div>
-          <label style={styles.label}>Personality *</label>
-          <textarea style={styles.textarea} rows={3}
-            placeholder="e.g. A wise ancient Greek philosopher who questions everything through Socratic dialogue"
-            value={newChar.personality} onChange={e => setNewChar({ ...newChar, personality: e.target.value })} />
-          <label style={styles.label}>Speaking Style (optional)</label>
-          <input style={styles.input} placeholder="e.g. Uses rhetorical questions, formal and measured tone"
-            value={newChar.speakingStyle} onChange={e => setNewChar({ ...newChar, speakingStyle: e.target.value })} />
-          <div style={styles.formBtns}>
-            <button style={styles.cancelBtn} onClick={() => setShowForm(false)}>Cancel</button>
-            <button style={styles.createBtn} onClick={createCharacter} disabled={creating}>
-              {creating ? "Creating…" : "Create & Chat"}
-            </button>
-          </div>
-        </div>
-      ) : !activeChar ? (
-        <div style={styles.empty}>
-          <div style={styles.emptyIcon}>💬</div>
-          <p style={styles.emptyText}>Select a character to start chatting,<br />or create your own.</p>
-          <button style={styles.createBtn} onClick={() => setShowForm(true)}>+ New Character</button>
-        </div>
-      ) : (
-        <div style={styles.chatWrap}>
-          <div style={styles.chatHeader}>
-            <span style={{ fontSize: 28 }}>{activeChar.emoji}</span>
-            <div>
-              <div style={styles.chatName}>{activeChar.name}</div>
-              <div style={styles.chatSub}>Your chat is private</div>
+      {/* ── MAIN ── */}
+      <main style={styles.main}>
+        {showForm ? (
+          <div style={styles.formWrap}>
+            <h2 style={styles.formTitle}>Create a Character</h2>
+            <label style={styles.label}>Name</label>
+            <input style={styles.input} placeholder="e.g. Socrates"
+              value={newChar.name} onChange={e => setNewChar({ ...newChar, name: e.target.value })} />
+            <label style={styles.label}>Pick an Emoji</label>
+            <div style={styles.emojiGrid}>
+              {EMOJIS.map(em => (
+                <button key={em} style={{ ...styles.emojiBtn, ...(newChar.emoji === em ? styles.emojiBtnActive : {}) }}
+                  onClick={() => setNewChar({ ...newChar, emoji: em })}>{em}</button>
+              ))}
+            </div>
+            <label style={styles.label}>Personality *</label>
+            <textarea style={styles.textarea} rows={3}
+              placeholder="e.g. A wise ancient Greek philosopher who questions everything through Socratic dialogue"
+              value={newChar.personality} onChange={e => setNewChar({ ...newChar, personality: e.target.value })} />
+            <label style={styles.label}>Speaking Style (optional)</label>
+            <input style={styles.input} placeholder="e.g. Uses rhetorical questions, formal and measured tone"
+              value={newChar.speakingStyle} onChange={e => setNewChar({ ...newChar, speakingStyle: e.target.value })} />
+            <div style={styles.formBtns}>
+              <button style={styles.cancelBtn} onClick={() => setShowForm(false)}>Cancel</button>
+              <button style={styles.createBtn} onClick={createCharacter} disabled={creating}>
+                {creating ? "Creating…" : "Create & Chat"}
+              </button>
             </div>
           </div>
-          <div style={styles.messages}>
-            {messages.length === 0 && (
-              <p style={styles.dimText}>Start the conversation with {activeChar.name}…</p>
-            )}
-            {messages.map((m, i) => (
-              <div key={i} style={{ ...styles.bubble, ...(m.role === "user" ? styles.bubbleUser : styles.bubbleAI) }}>
-                {m.content}
-              </div>
-            ))}
-            {loading && (
-              <div style={{ ...styles.bubble, ...styles.bubbleAI, opacity: 0.5 }}>
-                <span style={styles.typing}>●●●</span>
-              </div>
-            )}
-            <div ref={bottomRef} />
+        ) : !activeChar ? (
+          <div style={styles.empty}>
+            <div style={styles.emptyIcon}>💬</div>
+            <p style={styles.emptyText}>Select a character to start chatting,<br />or create your own.</p>
+            <button style={styles.createBtn} onClick={() => setShowForm(true)}>+ New Character</button>
           </div>
-          <div style={styles.inputRow}>
-            <input style={styles.chatInput}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && sendMessage()}
-              placeholder={`Message ${activeChar.name}…`}
-            />
-            <button style={styles.sendBtn} onClick={sendMessage} disabled={loading || !input.trim()}>
-              ↑
-            </button>
-          </div>
-        </div>
-      )}
-    </main>  {/* ← closes here */}
+        ) : (
+          <div style={styles.chatWrap}>
+            <div style={styles.chatHeader}>
+              <span style={{ fontSize: 28 }}>{activeChar.emoji}</span>
+              <div>
+                <div style={styles.chatName}>{activeChar.name}</div>
+                <div style={styles.chatSub}>Your chat is private</div>
+              </div>
+            </div>
+            <div style={styles.messages}>
+              {messages.length === 0 && (
+                <p style={styles.dimText}>Start the conversation with {activeChar.name}…</p>
+              )}
+              {messages.map((m, i) => {
+                const isImage = m.content?.startsWith("[image]:")
+                const imageUrl = isImage ? m.content.replace("[image]:", "") : null
 
-  </div>
-)
+                return (
+                  <div key={m.id ?? m.created_at} style={{ ...styles.bubble, ...(m.role === "user" ? styles.bubbleUser : styles.bubbleAI) }}>
+                    {isImage ? (
+                      <img
+                        src={imageUrl}
+                        style={{ width: "100%", maxWidth: 260, borderRadius: 10, display: "block" }}
+                      />
+                    ) : (
+                      m.content
+                    )}
+                  </div>
+                )
+              })}
+              {loading && (
+                <div style={{ ...styles.bubble, ...styles.bubbleAI, opacity: 0.5 }}>
+                  <span style={styles.typing}>●●●</span>
+                </div>
+              )}
+              <div ref={bottomRef} />
+            </div>
+            <div style={styles.inputRow}>
+              <input style={styles.chatInput}
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && sendMessage()}
+                placeholder={`Message ${activeChar.name}…`}
+              />
+              <button style={styles.imgBtn} onClick={() => handleGenerateImage()} disabled={!input.trim() || generatingImg}>
+                {generatingImg ? "⏳" : "🖼️"}
+              </button>
+              <button style={styles.sendBtn} onClick={sendMessage} disabled={loading || !input.trim()}>
+                ↑
+              </button>
+            </div>
+          </div>
+        )}
+      </main>  {/* ← closes here */}
+
+    </div>
+  )
 }
 // ── STYLES ────────────────────────────────────────────────────
 const styles: Record<string, React.CSSProperties> = {
@@ -345,7 +412,7 @@ const styles: Record<string, React.CSSProperties> = {
   charName: { fontSize: 14, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   delBtn: { background: "transparent", border: "none", color: "#555", cursor: "pointer", fontSize: 12, padding: "2px 4px", flexShrink: 0 },
   userEmail: { fontSize: 11, color: "#444", marginTop: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-
+  imgBtn: { width: 44, height: 44, borderRadius: "50%", background: "#1a1a1a", border: "1px solid #2a2a2a", fontSize: 18, cursor: "pointer", flexShrink: 0 },
   // Mobile topbar + char strip
   mobileTopbar: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid #1e1e1e", background: "#141414" },
   charStrip: { display: "flex", gap: 8, padding: "8px 10px", overflowX: "auto", background: "#141414", borderBottom: "1px solid #1e1e1e" },
