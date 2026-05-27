@@ -28,7 +28,7 @@ export default function Home() {
   const [activeConvo, setActiveConvo] = useState<any>(null)
   const [directMessages, setDirectMessages] = useState<any[]>([])
   const [searchEmail, setSearchEmail] = useState("")
-  const [searchResult, setSearchResult] = useState<any>(null)
+  const [searchResult, setSearchResult] = useState<any[]>([])
   // "ai" | "people" — replaces the old "characters" | "people" view
   const [view, setView] = useState<"ai" | "people">("ai")
 
@@ -39,34 +39,61 @@ export default function Home() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const [isMobile, setIsMobile] = useState(false)
 
-  useEffect(() => {
-    setIsMobile(window.innerWidth < 768)
-    const handler = () => setIsMobile(window.innerWidth < 768)
-    window.addEventListener("resize", handler)
-    return () => window.removeEventListener("resize", handler)
-  }, [])
 
-  // Load conversations on login
+
+  // Auth listener — no deps, runs once
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    return () => subscription.unsubscribe()
+  }, [])  // ← empty, runs once
+
+  // Load characters — depends only on session
+  useEffect(() => {
+    if (!session) return
+    async function load() {
+      setCharsLoading(true)
+      const { data } = await supabase.from("characters").select("*").order("created_at", { ascending: false })
+      setCharacters(data || [])
+      setCharsLoading(false)
+    }
+    load()
+  }, [session])  // ← just session
+
+  // Load conversations — depends only on session
   useEffect(() => {
     if (!session) return
     async function loadConversations() {
       const { data } = await supabase
         .from("conversations")
-        .select(`*, user1:user1_id(id, email), user2:user2_id(id, email)`)
+        .select(`*, user1:user1_id(id, username), user2:user2_id(id, username)`)
         .or(`user1_id.eq.${session.user.id},user2_id.eq.${session.user.id}`)
         .order("created_at", { ascending: false })
       setConversations(data || [])
     }
     loadConversations()
-  }, [session])
+  }, [session])  // ← just session
+
+  // Load messages for active character
+  useEffect(() => {
+    if (!activeChar || !session) { setMessages([]); return }
+    async function loadMessages() {
+      const { data } = await supabase
+        .from("messages").select("*")
+        .eq("character_id", activeChar.id)
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: true })
+      setMessages(data || [])
+    }
+    loadMessages()
+  }, [activeChar, session])  // ← both, but both are stable state values
 
   // Subscribe to direct messages
   useEffect(() => {
     if (!activeConvo) return
     async function loadDirectMessages() {
       const { data } = await supabase
-        .from("direct_messages")
-        .select("*")
+        .from("direct_messages").select("*")
         .eq("conversation_id", activeConvo.id)
         .order("created_at", { ascending: true })
       setDirectMessages(data || [])
@@ -82,43 +109,20 @@ export default function Home() {
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [activeConvo])
-
-  // Auth listener
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
-    return () => subscription.unsubscribe()
-  }, [])
-
-  // Load all characters
-  useEffect(() => {
-    async function load() {
-      setCharsLoading(true)
-      const { data } = await supabase.from("characters").select("*").order("created_at", { ascending: false })
-      setCharacters(data || [])
-      setCharsLoading(false)
-    }
-    load()
-  }, [session])
-
-  // Load messages for active character
-  useEffect(() => {
-    if (!activeChar || !session) { setMessages([]); return }
-    async function loadMessages() {
-      const { data } = await supabase
-        .from("messages").select("*")
-        .eq("character_id", activeChar.id).eq("user_id", session.user.id)
-        .order("created_at", { ascending: true })
-      setMessages(data || [])
-    }
-    loadMessages()
-  }, [activeChar, session])
+  }, [activeConvo])  // ← just activeConvo
 
   // Scroll to bottom
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages, directMessages, loading])
+  }, [messages, directMessages, loading])  // ← all stable
+
+  // isMobile
+  useEffect(() => {
+    setIsMobile(window.innerWidth < 768)
+    const handler = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener("resize", handler)
+    return () => window.removeEventListener("resize", handler)
+  }, [])  // ← empty, runs once
 
   async function sendDirectMessage() {
     if (!input.trim() || !activeConvo || !session) return
@@ -129,32 +133,94 @@ export default function Home() {
 
   async function searchUser() {
     if (!searchEmail.trim()) return
-    const { data } = await supabase
-      .from("profiles").select("*")
-      .ilike("email", `%${searchEmail}%`)
-      .neq("user_id", session.user.id).limit(5)
-    setSearchResult(data?.[0] || null)
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .ilike("username", `%${searchEmail}%`)
+      .neq("id", session.user.id)   // ← id not user_id
+      .limit(5)
+    if (error) { console.log(error); return }
+    setSearchResult(data || [])
   }
 
   async function startConversation(otherUserId: string) {
+    // Check if conversation already exists
     const { data: existing } = await supabase
-      .from("conversations").select("*")
+      .from("conversations")
+      .select("*")
       .or(`and(user1_id.eq.${session.user.id},user2_id.eq.${otherUserId}),and(user1_id.eq.${otherUserId},user2_id.eq.${session.user.id})`)
       .single()
-    if (existing) { setActiveConvo(existing); return }
+
+    if (existing) {
+      setActiveConvo(existing)
+      setView("people")
+      return
+    }
+
+    // Create new conversation
     const { data } = await supabase
-      .from("conversations").insert({ user1_id: session.user.id, user2_id: otherUserId })
-      .select().single()
-    if (data) { setConversations(prev => [data, ...prev]); setActiveConvo(data) }
+      .from("conversations")
+      .insert({ user1_id: session.user.id, user2_id: otherUserId })
+      .select()
+      .single()
+
+    if (data) {
+      setConversations(prev => [data, ...prev])
+      setActiveConvo(data)
+      setView("people")
+    }
   }
 
   async function handleAuth() {
-    setAuthError(""); setAuthLoading(true)
-    const fn = authMode === "login"
-      ? supabase.auth.signInWithPassword({ email, password })
-      : supabase.auth.signUp({ email, password })
-    const { error } = await fn
-    if (error) setAuthError(error.message)
+
+    setAuthError("")
+    setAuthLoading(true)
+
+    try {
+
+      if (authMode === "login") {
+
+        const { error } =
+          await supabase.auth.signInWithPassword({
+            email,
+            password
+          })
+
+        if (error) {
+          setAuthError(error.message)
+        }
+
+      } else {
+
+        const { data, error } =
+          await supabase.auth.signUp({
+            email,
+            password
+          })
+
+        if (error) {
+          setAuthError(error.message)
+        }
+
+        if (data.user) {
+
+          await supabase
+            .from("profiles")
+            .insert({
+              id: data.user.id,
+              username: email.split("@")[0]
+            })
+
+        }
+
+      }
+
+    } catch (err: any) {
+
+      setAuthError(err.message)
+
+    }
+
     setAuthLoading(false)
   }
 
@@ -212,23 +278,6 @@ export default function Home() {
     setNewChar({ name: "", emoji: "🤖", personality: "", speakingStyle: "" })
     setShowForm(false); setCreating(false)
   }
-
-  
-async function loadConversations() {
-  const { data, error } = await supabase
-    .from("conversations")
-    .select(`
-      *,
-      user1:user1_id(id, email),
-      user2:user2_id(id, email)
-    `)
-    .or(`user1_id.eq.${session.user.id},user2_id.eq.${session.user.id}`)
-    .order("created_at", { ascending: false })
-
-  console.log("convos error:", error)  // ← add this to see exact error
-  setConversations(data || [])
-}
-
 
   async function deleteCharacter(id: string) {
     await supabase.from("characters").delete().eq("id", id)
@@ -379,15 +428,21 @@ async function loadConversations() {
                     onKeyDown={e => e.key === "Enter" && searchUser()} />
                   <button style={s.searchBtn} onClick={searchUser}>→</button>
                 </div>
-                {searchResult && (
-                  <div style={s.charItem} onClick={() => startConversation(searchResult.user_id)}>
+                {searchResult.map(user => (
+                  <div
+                    key={user.id}
+                    style={s.charItem}
+                    onClick={() => startConversation(user.id)}
+                  >
                     <span style={s.charEmoji}>👤</span>
-                    <div>
-                      <span style={s.charName}>{searchResult.display_name}</span>
-                      <span style={s.emailHint}>{searchResult.email}</span>
+
+                    <div style={s.chatName}>
+                      {activeConvo.user1_id === session.user.id
+                        ? activeConvo.user2?.username
+                        : activeConvo.user1?.username}
                     </div>
                   </div>
-                )}
+                ))}
                 <div style={s.charList}>
                   {conversations.map(c => {
                     const other = c.user1_id === session.user.id ? c.user2 : c.user1
