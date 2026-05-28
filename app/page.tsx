@@ -96,9 +96,9 @@ export default function Home() {
 
   useEffect(() => {
     if (!session) return
-    supabase
-      .from("conversations")
-      .select("*, user1:user1_id(id,email), user2:user2_id(id,email)")
+   supabase
+  .from("conversations")
+  .select("*, user1:user1_id(id,username), user2:user2_id(id,username)")
       .or(`user1_id.eq.${session.user.id},user2_id.eq.${session.user.id}`)
       .order("created_at", { ascending: false })
       .then(({ data }) => setConversations(data || []))
@@ -111,11 +111,15 @@ export default function Home() {
       .order("created_at", { ascending: true })
       .then(({ data }) => setDirectMessages(data || []))
     const ch = supabase
-      .channel(`convo-${activeConvo.id}`)
-      .on("postgres_changes", { event:"INSERT", schema:"public", table:"direct_messages",
-        filter:`conversation_id=eq.${activeConvo.id}` },
-        (p) => setDirectMessages(prev => [...prev, p.new]))
-      .subscribe()
+  .channel(`convo-${activeConvo.id}`)
+  .on("postgres_changes", { event:"INSERT", schema:"public", table:"direct_messages" },
+    (p) => {
+      // manually filter client-side
+      if (p.new.conversation_id === activeConvo.id) {
+        setDirectMessages(prev => [...prev, p.new])
+      }
+    })
+  .subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [activeConvo])
 
@@ -183,15 +187,83 @@ async function searchUser() {
   setSearchResult(data?.[0] || null)
 }
 
-  async function startConversation(otherUserId: string) {
-    const { data: existing } = await supabase.from("conversations").select("*")
-      .or(`and(user1_id.eq.${session.user.id},user2_id.eq.${otherUserId}),and(user1_id.eq.${otherUserId},user2_id.eq.${session.user.id})`)
-      .single()
-    if (existing) { openConvo(existing); return }
-    const { data } = await supabase.from("conversations")
-      .insert({ user1_id: session.user.id, user2_id: otherUserId }).select().single()
-    if (data) { setConversations(prev => [data, ...prev]); openConvo(data) }
+async function createReplica(otherUser: any, convoId: string) {
+  if (!session) return
+  setCreating(true)
+
+  // Fetch messages sent by the OTHER user in this conversation
+  const { data: msgs } = await supabase
+    .from("direct_messages")
+    .select("content")
+    .eq("conversation_id", convoId)
+    .eq("sender_id", otherUser.id)
+    .order("created_at", { ascending: true })
+    .limit(200)
+
+  if (!msgs || msgs.length < 5) {
+    alert(`${otherUser.username} needs to send at least 5 messages before you can create their replica!`)
+    setCreating(false)
+    return
   }
+
+  const sampleMessages = msgs.map(m => m.content).join("\n")
+
+  // Ask Claude to analyze their writing style
+  const res = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messages: [{
+        role: "user",
+        content: `Analyze the writing style, personality, tone, vocabulary, and communication patterns from these messages written by one person. Then write a system prompt (max 200 words) for an AI to perfectly impersonate this person's texting style. Be specific about quirks, phrases, emoji usage, response length, topics they care about.\n\nMessages:\n${sampleMessages}`
+      }],
+      systemPrompt: "You are an expert at analyzing writing styles and creating AI persona prompts. Return only the system prompt text, nothing else."
+    })
+  })
+
+  const data = await res.json()
+  const system_prompt = `${data.reply} Never break character. Match the original person's typical message length and style exactly.`
+
+  // Delete old replica of this person if exists
+  await supabase.from("characters")
+    .delete()
+    .eq("replica_of", otherUser.id)
+    .eq("created_by", session.user.id)
+
+  // Create new replica character
+  const { data: char, error } = await supabase.from("characters")
+    .insert({
+      name: `${otherUser.username}'s Replica`,
+      emoji: "🪞",
+      system_prompt,
+      created_by: session.user.id,
+      is_replica: true,
+      replica_of: otherUser.id
+    })
+    .select().single()
+
+  if (!error && char) {
+    setCharacters(prev => [char, ...prev.filter(c => c.replica_of !== otherUser.id)])
+    setView("ai")
+    openChar(char)
+  }
+  setCreating(false)
+}
+
+async function startConversation(otherUserId: string) {
+  const { data: existing } = await supabase
+    .from("conversations")
+    .select("*, user1:user1_id(id,username), user2:user2_id(id,username)")
+    .or(`and(user1_id.eq.${session.user.id},user2_id.eq.${otherUserId}),and(user1_id.eq.${otherUserId},user2_id.eq.${session.user.id})`)
+    .maybeSingle()
+  if (existing) { openConvo(existing); return }
+  const { data } = await supabase
+    .from("conversations")
+    .insert({ user1_id: session.user.id, user2_id: otherUserId })
+    .select("*, user1:user1_id(id,username), user2:user2_id(id,username)")
+    .single()
+  if (data) { setConversations(prev => [data, ...prev]); openConvo(data) }
+}
 
   async function handleAuth() {
     setAuthError(""); setAuthLoading(true)
@@ -391,17 +463,40 @@ async function searchUser() {
             /* Active DM */
             <div style={S.chatWrap}>
               <div style={S.chatHeader}>
-                <button className="cc-back-btn" style={S.backBtn} onClick={goBack}>←</button>
-                <span style={{ fontSize:26 }}>👤</span>
-                <div>
-                  <div style={S.chatName}>
-                    {activeConvo.user1_id===session.user.id
-                      ? activeConvo.user2?.email?.split("@")[0]
-                      : activeConvo.user1?.email?.split("@")[0]}
-                  </div>
-                  <div style={S.chatSub}>Online</div>
-                </div>
-              </div>
+  <button className="cc-back-btn" style={S.backBtn} onClick={goBack}>←</button>
+  <span style={{ fontSize:26 }}>👤</span>
+  <div style={{ flex:1 }}>
+    <div style={S.chatName}>
+      {activeConvo.user1_id===session.user.id
+        ? activeConvo.user2?.username
+        : activeConvo.user1?.username}
+    </div>
+    <div style={S.chatSub}>Direct Message</div>
+  </div>
+  <button
+    style={{
+      background: "transparent",
+      border: "1px solid #a855f7",
+      borderRadius: 8,
+      color: "#a855f7",
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: "pointer",
+      padding: "6px 10px",
+      flexShrink: 0,
+      opacity: creating ? 0.5 : 1
+    }}
+    disabled={creating}
+    onClick={() => {
+      const other = activeConvo.user1_id === session.user.id
+        ? activeConvo.user2
+        : activeConvo.user1
+      createReplica(other, activeConvo.id)
+    }}
+  >
+    {creating ? "⏳" : "🪞 Replica"}
+  </button>
+</div>
               <div className="cc-messages" style={S.messages}>
                 {directMessages.map((m, i) => (
                   <div key={i} className="cc-bubble"
