@@ -188,10 +188,15 @@ async function searchUser() {
 }
 
 async function createReplica(otherUser: any, convoId: string) {
+  
+  
+  
   if (!session) return
   setCreating(true)
-
+   console.log("1. otherUser:", otherUser)
+  console.log("2. convoId:", convoId)
   // Fetch messages sent by the OTHER user in this conversation
+  
   const { data: msgs } = await supabase
     .from("direct_messages")
     .select("content")
@@ -199,6 +204,10 @@ async function createReplica(otherUser: any, convoId: string) {
     .eq("sender_id", otherUser.id)
     .order("created_at", { ascending: true })
     .limit(200)
+
+
+  console.log("3. msgs count:", msgs?.length)
+  console.log("4. msgs data:", msgs)
 
   if (!msgs || msgs.length < 5) {
     alert(`${otherUser.username} needs to send at least 5 messages before you can create their replica!`)
@@ -218,12 +227,15 @@ async function createReplica(otherUser: any, convoId: string) {
         content: `Analyze the writing style, personality, tone, vocabulary, and communication patterns from these messages written by one person. Then write a system prompt (max 200 words) for an AI to perfectly impersonate this person's texting style. Be specific about quirks, phrases, emoji usage, response length, topics they care about.\n\nMessages:\n${sampleMessages}`
       }],
       systemPrompt: "You are an expert at analyzing writing styles and creating AI persona prompts. Return only the system prompt text, nothing else."
-    })
+    
+    }
+  )
   })
 
   const data = await res.json()
+   console.log("5. API response:", data)
   const system_prompt = `${data.reply} Never break character. Match the original person's typical message length and style exactly.`
-
+console.log("6. system_prompt:", system_prompt)
   // Delete old replica of this person if exists
   await supabase.from("characters")
     .delete()
@@ -241,6 +253,9 @@ async function createReplica(otherUser: any, convoId: string) {
       replica_of: otherUser.id
     })
     .select().single()
+
+    console.log("7. insert result - char:", char)
+  console.log("8. insert result - error:", error)
 
   if (!error && char) {
     setCharacters(prev => [char, ...prev.filter(c => c.replica_of !== otherUser.id)])

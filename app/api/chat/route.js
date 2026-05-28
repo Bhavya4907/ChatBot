@@ -1,5 +1,5 @@
 export async function POST(request) {
-  const { messages, systemPrompt } = await request.json()
+  const { messages, systemPrompt, maxTokens } = await request.json()
 
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -9,7 +9,7 @@ export async function POST(request) {
     },
     body: JSON.stringify({
       model: "llama-3.3-70b-versatile",
-      max_tokens: 500,
+      max_tokens: maxTokens || 500,
       messages: [
         { role: "system", content: systemPrompt },
         ...messages
@@ -18,5 +18,12 @@ export async function POST(request) {
   })
 
   const data = await res.json()
+  console.log("Groq raw response:", JSON.stringify(data))
+
+  if (!data.choices || !data.choices[0]) {
+    console.error("Groq error:", data)
+    return Response.json({ reply: null, error: data })
+  }
+
   return Response.json({ reply: data.choices[0].message.content })
 }
