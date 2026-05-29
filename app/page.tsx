@@ -65,6 +65,7 @@ const CSS = `
 `
 
 export default function Home() {
+  const [allProfiles, setAllProfiles] = useState<any[]>([])
   const [session, setSession] = useState<any>(null)
   const [authMode, setAuthMode] = useState<"login" | "signup">("login")
   const [email, setEmail] = useState("")
@@ -149,6 +150,58 @@ export default function Home() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, directMessages, loading])
+
+  useEffect(() => {
+    if (!session) return
+
+    // Mark self as online
+    supabase.from("profiles")
+      .update({ is_online: true, last_seen: new Date().toISOString() })
+      .eq("id", session.user.id)
+      .then(() => { })
+
+    // Load all profiles except self
+    supabase.from("profiles")
+      .select("*")
+      .neq("id", session.user.id)
+      .order("is_online", { ascending: false })
+      .then(({ data }) => setAllProfiles(data || []))
+
+    // Subscribe to profile changes for live online status
+    const ch = supabase
+      .channel("profiles-online")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles" },
+        (p) => {
+          setAllProfiles(prev => prev.map(profile =>
+            profile.id === p.new.id ? { ...profile, ...p.new } : profile
+          ))
+        })
+      .subscribe()
+
+    // Mark self as offline when tab closes
+    const handleOffline = () => {
+      supabase.from("profiles")
+        .update({ is_online: false, last_seen: new Date().toISOString() })
+        .eq("id", session.user.id)
+        .then(() => { })
+    }
+    window.addEventListener("beforeunload", handleOffline)
+
+    // Heartbeat every 30s to keep online status fresh
+    const heartbeat = setInterval(() => {
+      supabase.from("profiles")
+        .update({ is_online: true, last_seen: new Date().toISOString() })
+        .eq("id", session.user.id)
+        .then(() => { })
+    }, 30000)
+
+    return () => {
+      supabase.removeChannel(ch)
+      window.removeEventListener("beforeunload", handleOffline)
+      clearInterval(heartbeat)
+      handleOffline()
+    }
+  }, [session])
 
   // ── Navigation helpers ────────────────────────────────────────
 
@@ -477,35 +530,80 @@ export default function Home() {
           ) : (
             /* People list */
             <div style={S.listWrap}>
+              {/* Search bar */}
               <div style={S.searchRow}>
                 <input style={S.searchInput} placeholder="Search by username…"
                   value={searchEmail} onChange={e => setSearchEmail(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && searchUser()} />
                 <button style={S.searchBtn} onClick={searchUser}>→</button>
               </div>
+
+              {/* Search result */}
               {searchResult && (
-                <div style={S.charItem} onClick={() => startConversation(searchResult.user_id)}>
-                  <span style={S.charEmoji}>👤</span>
-                  <div>
-                    <span style={S.charName}>{searchResult.display_name}</span>
-                    <span style={{ fontSize: 11, color: WA.textMuted, display: "block" }}>{searchResult.email}</span>
+                <div style={{ ...S.charItem, background: WA.surfaceAlt }} onClick={() => startConversation(searchResult.id)}>
+                  <div style={{ position: "relative" }}>
+                    {searchResult.avatar_url
+                      ? <img src={searchResult.avatar_url} style={{ width: 38, height: 38, borderRadius: "50%", objectFit: "cover" }} />
+                      : <div style={{ width: 38, height: 38, borderRadius: "50%", background: WA.surface, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>👤</div>
+                    }
+                    <div style={{
+                      position: "absolute", bottom: 0, right: 0, width: 10, height: 10, borderRadius: "50%",
+                      background: searchResult.is_online ? "#22c55e" : WA.textMuted,
+                      border: `2px solid ${WA.bg}`
+                    }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={S.charName}>{searchResult.display_name || searchResult.username}</div>
+                    <div style={{ fontSize: 11, color: searchResult.is_online ? "#22c55e" : WA.textMuted }}>
+                      {searchResult.is_online ? "Online" : "Offline"}
+                    </div>
                   </div>
                 </div>
               )}
+
+              {/* All People header */}
+              <div style={{ padding: "10px 16px 4px", fontSize: 11, color: WA.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", flexShrink: 0 }}>
+                All People ({allProfiles.length})
+              </div>
+
               <div className="cc-charlist" style={S.charList}>
-                {conversations.map(c => {
-                  const other = c.user1_id === session.user.id ? c.user2 : c.user1
+                {/* Online users first */}
+                {allProfiles.map(p => {
+                  const existingConvo = conversations.find(c =>
+                    (c.user1_id === session.user.id && c.user2_id === p.id) ||
+                    (c.user2_id === session.user.id && c.user1_id === p.id)
+                  )
                   return (
-                    <div key={c.id}
-                      style={{ ...S.charItem, ...(activeConvo?.id === c.id ? S.charItemActive : {}) }}
-                      onClick={() => openConvo(c)}>
-                      <span style={S.charEmoji}>👤</span>
-                      <span style={S.charName}>{other?.email?.split("@")[0]}</span>
+                    <div key={p.id}
+                      style={{ ...S.charItem, ...(activeConvo?.id === existingConvo?.id ? S.charItemActive : {}) }}
+                      onClick={() => startConversation(p.id)}>
+                      {/* Avatar with online dot */}
+                      <div style={{ position: "relative", flexShrink: 0 }}>
+                        {p.avatar_url
+                          ? <img src={p.avatar_url} style={{ width: 42, height: 42, borderRadius: "50%", objectFit: "cover" }} />
+                          : <div style={{ width: 42, height: 42, borderRadius: "50%", background: WA.surfaceAlt, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>👤</div>
+                        }
+                        <div style={{
+                          position: "absolute", bottom: 1, right: 1, width: 11, height: 11, borderRadius: "50%",
+                          background: p.is_online ? "#22c55e" : "#6b7280",
+                          border: `2px solid ${WA.bg}`
+                        }} />
+                      </div>
+                      {/* Name + status */}
+                      <div style={{ flex: 1, overflow: "hidden" }}>
+                        <div style={S.charName}>{p.display_name || p.username}</div>
+                        <div style={{ fontSize: 11, color: p.is_online ? "#22c55e" : WA.textMuted }}>
+                          {p.is_online ? "Online" : p.last_seen
+                            ? `Last seen ${new Date(p.last_seen).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                            : "Offline"}
+                        </div>
+                      </div>
                     </div>
                   )
                 })}
               </div>
             </div>
+
           )}
 
           <p style={S.userEmail}>{session.user.email}</p>
@@ -526,7 +624,17 @@ export default function Home() {
                       ? activeConvo.user2?.username
                       : activeConvo.user1?.username}
                   </div>
-                  <div style={S.chatSub}>Direct Message</div>
+                  <div style={{ fontSize:11, color: (() => {
+  const other = activeConvo.user1_id === session.user.id ? activeConvo.user2 : activeConvo.user1
+  const profile = allProfiles.find(p => p.id === other?.id)
+  return profile?.is_online ? "#22c55e" : WA.textMuted
+})() }}>
+  {(() => {
+    const other = activeConvo.user1_id === session.user.id ? activeConvo.user2 : activeConvo.user1
+    const profile = allProfiles.find(p => p.id === other?.id)
+    return profile?.is_online ? "● Online" : "● Offline"
+  })()}
+</div>
                 </div>
                 <button
                   style={{
@@ -553,22 +661,12 @@ export default function Home() {
                 </button>
               </div>
               <div className="cc-messages" style={S.messages}>
-                {directMessages.map((m, i) => {
-  const isUser = m.sender_id === session.user.id
-  const isImage = m.content?.startsWith("[image]:")
-  const imageUrl = isImage ? m.content.replace("[image]:", "") : null
-  return (
-    <div key={i} style={{ display:"flex", flexDirection:"column", alignItems: isUser ? "flex-end" : "flex-start" }}>
-      <div className="cc-bubble"
-        style={{ ...S.bubble, ...(isUser ? S.bubbleUser : S.bubbleAI), ...(isImage ? { padding:4, background:"transparent" } : {}) }}>
-        {isImage
-          ? <img src={imageUrl!} style={{ maxWidth:220, maxHeight:280, borderRadius:10, display:"block", cursor:"pointer" }}
-              onClick={() => window.open(imageUrl!, '_blank')} />
-          : m.content}
-      </div>
-    </div>
-  )
-})}
+                {directMessages.map((m, i) => (
+                  <div key={i} className="cc-bubble"
+                    style={{ ...S.bubble, ...(m.sender_id === session.user.id ? S.bubbleUser : S.bubbleAI) }}>
+                    {m.content}
+                  </div>
+                ))}
                 <div ref={bottomRef} />
               </div>
               <div style={S.inputRow}>
