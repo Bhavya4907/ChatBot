@@ -7,18 +7,18 @@ const supabase = createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRoeWtnYnJoZmpkbGt1eXN3bWF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3MDkyOTIsImV4cCI6MjA5NTI4NTI5Mn0.gZz_lP56l4xNyFeESJDhtaXbQSksctgFGHr7zTttSQ0"
 )
 
-const EMOJIS = ["🤖","🧙","🦊","🐉","👾","🧠","🕵️","🧜","🦁","🎭","👻","🤡","🧛","🦸","🧝"]
+const EMOJIS = ["🤖", "🧙", "🦊", "🐉", "👾", "🧠", "🕵️", "🧜", "🦁", "🎭", "👻", "🤡", "🧛", "🦸", "🧝"]
 
 const WA = {
-  bg:          "#111b21",
-  surface:     "#202c33",
-  surfaceAlt:  "#2a3942",
-  border:      "#2a3942",
-  green:       "#00a884",
-  greenDark:   "#005c4b",
+  bg: "#111b21",
+  surface: "#202c33",
+  surfaceAlt: "#2a3942",
+  border: "#2a3942",
+  green: "#00a884",
+  greenDark: "#005c4b",
   textPrimary: "#e9edef",
-  textMuted:   "#8696a0",
-  chatBg:      "#0b141a",
+  textMuted: "#8696a0",
+  chatBg: "#0b141a",
 }
 
 // Inject CSS once for responsive layout — avoids JS-based isMobile hydration issues
@@ -65,30 +65,32 @@ const CSS = `
 `
 
 export default function Home() {
-  const [session,        setSession]        = useState<any>(null)
-  const [authMode,       setAuthMode]       = useState<"login"|"signup">("login")
-  const [email,          setEmail]          = useState("")
-  const [password,       setPassword]       = useState("")
-  const [authError,      setAuthError]      = useState("")
-  const [authLoading,    setAuthLoading]    = useState(false)
-  const [generatingImg,  setGeneratingImg]  = useState(false)
-  const [characters,     setCharacters]     = useState<any[]>([])
-  const [activeChar,     setActiveChar]     = useState<any>(null)
-  const [messages,       setMessages]       = useState<any[]>([])
-  const [input,          setInput]          = useState("")
-  const [loading,        setLoading]        = useState(false)
-  const [charsLoading,   setCharsLoading]   = useState(true)
-  const [conversations,  setConversations]  = useState<any[]>([])
-  const [activeConvo,    setActiveConvo]    = useState<any>(null)
+  const [session, setSession] = useState<any>(null)
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [authError, setAuthError] = useState("")
+  const [authLoading, setAuthLoading] = useState(false)
+  const [generatingImg, setGeneratingImg] = useState(false)
+  const [characters, setCharacters] = useState<any[]>([])
+  const [activeChar, setActiveChar] = useState<any>(null)
+  const [messages, setMessages] = useState<any[]>([])
+  const [input, setInput] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [charsLoading, setCharsLoading] = useState(true)
+  const [conversations, setConversations] = useState<any[]>([])
+  const [activeConvo, setActiveConvo] = useState<any>(null)
   const [directMessages, setDirectMessages] = useState<any[]>([])
-  const [searchEmail,    setSearchEmail]    = useState("")
-  const [searchResult,   setSearchResult]   = useState<any>(null)
-  const [view,           setView]           = useState<"ai"|"people">("ai")
-  const [showForm,       setShowForm]       = useState(false)
-  const [newChar,        setNewChar]        = useState({ name:"", emoji:"🤖", personality:"", speakingStyle:"" })
-  const [creating,       setCreating]       = useState(false)
+  const [searchEmail, setSearchEmail] = useState("")
+  const [searchResult, setSearchResult] = useState<any>(null)
+  const [view, setView] = useState<"ai" | "people">("ai")
+  const [showForm, setShowForm] = useState(false)
+  const [newChar, setNewChar] = useState({ name: "", emoji: "🤖", personality: "", speakingStyle: "" })
+  const [creating, setCreating] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
   // CSS class drives the slide animation — no JS isMobile needed
-  const [chatOpen,       setChatOpen]       = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
 
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -96,9 +98,9 @@ export default function Home() {
 
   useEffect(() => {
     if (!session) return
-   supabase
-  .from("conversations")
-  .select("*, user1:user1_id(id,username), user2:user2_id(id,username)")
+    supabase
+      .from("conversations")
+      .select("*, user1:user1_id(id,username), user2:user2_id(id,username)")
       .or(`user1_id.eq.${session.user.id},user2_id.eq.${session.user.id}`)
       .order("created_at", { ascending: false })
       .then(({ data }) => setConversations(data || []))
@@ -111,15 +113,15 @@ export default function Home() {
       .order("created_at", { ascending: true })
       .then(({ data }) => setDirectMessages(data || []))
     const ch = supabase
-  .channel(`convo-${activeConvo.id}`)
-  .on("postgres_changes", { event:"INSERT", schema:"public", table:"direct_messages" },
-    (p) => {
-      // manually filter client-side
-      if (p.new.conversation_id === activeConvo.id) {
-        setDirectMessages(prev => [...prev, p.new])
-      }
-    })
-  .subscribe()
+      .channel(`convo-${activeConvo.id}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "direct_messages" },
+        (p) => {
+          // manually filter client-side
+          if (p.new.conversation_id === activeConvo.id) {
+            setDirectMessages(prev => [...prev, p.new])
+          }
+        })
+      .subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [activeConvo])
 
@@ -176,109 +178,111 @@ export default function Home() {
     })
   }
 
-async function searchUser() {
-  if (!searchEmail.trim()) return
-  const { data } = await supabase
-    .from("profiles")
-    .select("*")
-    .ilike("username", `%${searchEmail}%`)
-    .neq("id", session.user.id)  // "id" not "user_id"
-    .limit(5)
-  setSearchResult(data?.[0] || null)
-}
-
-async function createReplica(otherUser: any, convoId: string) {
-  
-  
-  
-  if (!session) return
-  setCreating(true)
-   console.log("1. otherUser:", otherUser)
-  console.log("2. convoId:", convoId)
-  // Fetch messages sent by the OTHER user in this conversation
-  
-  const { data: msgs } = await supabase
-    .from("direct_messages")
-    .select("content")
-    .eq("conversation_id", convoId)
-    .eq("sender_id", otherUser.id)
-    .order("created_at", { ascending: true })
-    .limit(200)
-
-
-  console.log("3. msgs count:", msgs?.length)
-  console.log("4. msgs data:", msgs)
-
-  if (!msgs || msgs.length < 5) {
-    alert(`${otherUser.username} needs to send at least 5 messages before you can create their replica!`)
-    setCreating(false)
-    return
+  async function searchUser() {
+    if (!searchEmail.trim()) return
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .ilike("username", `%${searchEmail}%`)
+      .neq("id", session.user.id)  // "id" not "user_id"
+      .limit(5)
+    setSearchResult(data?.[0] || null)
   }
 
-  const sampleMessages = msgs.map(m => m.content).join("\n")
+  async function createReplica(otherUser: any, convoId: string) {
 
-  // Ask Claude to analyze their writing style
-  const res = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      messages: [{
-        role: "user",
-        content: `Analyze the writing style, personality, tone, vocabulary, and communication patterns from these messages written by one person. Then write a system prompt (max 200 words) for an AI to perfectly impersonate this person's texting style. Be specific about quirks, phrases, emoji usage, response length, topics they care about.\n\nMessages:\n${sampleMessages}`
-      }],
-      systemPrompt: "You are an expert at analyzing writing styles and creating AI persona prompts. Return only the system prompt text, nothing else."
-    
+
+
+    if (!session) return
+    setCreating(true)
+    console.log("1. otherUser:", otherUser)
+    console.log("2. convoId:", convoId)
+    // Fetch messages sent by the OTHER user in this conversation
+
+    const { data: msgs } = await supabase
+      .from("direct_messages")
+      .select("content")
+      .eq("conversation_id", convoId)
+      .eq("sender_id", otherUser.id)
+      .order("created_at", { ascending: true })
+      .limit(200)
+
+
+    console.log("3. msgs count:", msgs?.length)
+    console.log("4. msgs data:", msgs)
+
+    if (!msgs || msgs.length < 5) {
+      alert(`${otherUser.username} needs to send at least 5 messages before you can create their replica!`)
+      setCreating(false)
+      return
     }
-  )
-  })
 
-  const data = await res.json()
-   console.log("5. API response:", data)
-  const system_prompt = `${data.reply} Never break character. Match the original person's typical message length and style exactly.`
-console.log("6. system_prompt:", system_prompt)
-  // Delete old replica of this person if exists
-  await supabase.from("characters")
-    .delete()
-    .eq("replica_of", otherUser.id)
-    .eq("created_by", session.user.id)
+    const sampleMessages = msgs.map(m => m.content).join("\n")
 
-  // Create new replica character
-  const { data: char, error } = await supabase.from("characters")
-    .insert({
-      name: `${otherUser.username}'s Replica`,
-      emoji: "🪞",
-      system_prompt,
-      created_by: session.user.id,
-      is_replica: true,
-      replica_of: otherUser.id
+    // Ask Claude to analyze their writing style
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [{
+          role: "user",
+          content: `Analyze the writing style, personality, tone, vocabulary, and communication patterns from these messages written by one person. Then write a system prompt (max 200 words) for an AI to perfectly impersonate this person's texting style. Be specific about quirks, phrases, emoji usage, response length, topics they care about.\n\nMessages:\n${sampleMessages}`
+        }],
+        systemPrompt: "You are an expert at analyzing writing styles and creating AI persona prompts. Return only the system prompt text, nothing else."
+
+      }
+      )
     })
-    .select().single()
+
+
+
+    const data = await res.json()
+    console.log("5. API response:", data)
+    const system_prompt = `${data.reply} Never break character. Match the original person's typical message length and style exactly.`
+    console.log("6. system_prompt:", system_prompt)
+    // Delete old replica of this person if exists
+    await supabase.from("characters")
+      .delete()
+      .eq("replica_of", otherUser.id)
+      .eq("created_by", session.user.id)
+
+    // Create new replica character
+    const { data: char, error } = await supabase.from("characters")
+      .insert({
+        name: `${otherUser.username}'s Replica`,
+        emoji: "🪞",
+        system_prompt,
+        created_by: session.user.id,
+        is_replica: true,
+        replica_of: otherUser.id
+      })
+      .select().single()
 
     console.log("7. insert result - char:", char)
-  console.log("8. insert result - error:", error)
+    console.log("8. insert result - error:", error)
 
-  if (!error && char) {
-    setCharacters(prev => [char, ...prev.filter(c => c.replica_of !== otherUser.id)])
-    setView("ai")
-    openChar(char)
+    if (!error && char) {
+      setCharacters(prev => [char, ...prev.filter(c => c.replica_of !== otherUser.id)])
+      setView("ai")
+      openChar(char)
+    }
+    setCreating(false)
   }
-  setCreating(false)
-}
 
-async function startConversation(otherUserId: string) {
-  const { data: existing } = await supabase
-    .from("conversations")
-    .select("*, user1:user1_id(id,username), user2:user2_id(id,username)")
-    .or(`and(user1_id.eq.${session.user.id},user2_id.eq.${otherUserId}),and(user1_id.eq.${otherUserId},user2_id.eq.${session.user.id})`)
-    .maybeSingle()
-  if (existing) { openConvo(existing); return }
-  const { data } = await supabase
-    .from("conversations")
-    .insert({ user1_id: session.user.id, user2_id: otherUserId })
-    .select("*, user1:user1_id(id,username), user2:user2_id(id,username)")
-    .single()
-  if (data) { setConversations(prev => [data, ...prev]); openConvo(data) }
-}
+  async function startConversation(otherUserId: string) {
+    const { data: existing } = await supabase
+      .from("conversations")
+      .select("*, user1:user1_id(id,username), user2:user2_id(id,username)")
+      .or(`and(user1_id.eq.${session.user.id},user2_id.eq.${otherUserId}),and(user1_id.eq.${otherUserId},user2_id.eq.${session.user.id})`)
+      .maybeSingle()
+    if (existing) { openConvo(existing); return }
+    const { data } = await supabase
+      .from("conversations")
+      .insert({ user1_id: session.user.id, user2_id: otherUserId })
+      .select("*, user1:user1_id(id,username), user2:user2_id(id,username)")
+      .single()
+    if (data) { setConversations(prev => [data, ...prev]); openConvo(data) }
+  }
 
   async function handleAuth() {
     setAuthError(""); setAuthLoading(true)
@@ -305,27 +309,27 @@ async function startConversation(otherUserId: string) {
     setGeneratingImg(true)
     try {
       const data = await generateImage(input)
-      const msg = { role:"assistant", content:`[image]:${data.url}`, character_id:activeChar.id, user_id:session.user.id }
+      const msg = { role: "assistant", content: `[image]:${data.url}`, character_id: activeChar.id, user_id: session.user.id }
       await supabase.from("messages").insert(msg)
-      setMessages(prev => [...prev, { ...msg, id:"temp-img" }])
+      setMessages(prev => [...prev, { ...msg, id: "temp-img" }])
     } finally { setGeneratingImg(false) }
   }
 
   async function sendMessage() {
     if (!input.trim() || !activeChar || loading || !session) return
-    const userMsg = { role:"user", content:input, character_id:activeChar.id, user_id:session.user.id }
-    setMessages(prev => [...prev, { ...userMsg, id:"temp-user" }])
+    const userMsg = { role: "user", content: input, character_id: activeChar.id, user_id: session.user.id }
+    setMessages(prev => [...prev, { ...userMsg, id: "temp-user" }])
     setInput(""); setLoading(true)
     await supabase.from("messages").insert(userMsg)
-    const history = [...messages, userMsg].map(m => ({ role:m.role, content:m.content }))
+    const history = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }))
     const res = await fetch("/api/chat", {
-      method:"POST", headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ messages:history, systemPrompt:activeChar.system_prompt })
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: history, systemPrompt: activeChar.system_prompt })
     })
     const data = await res.json()
-    const aiMsg = { role:"assistant", content:data.reply, character_id:activeChar.id, user_id:session.user.id }
+    const aiMsg = { role: "assistant", content: data.reply, character_id: activeChar.id, user_id: session.user.id }
     await supabase.from("messages").insert(aiMsg)
-    setMessages(prev => [...prev.filter(m => m.id !== "temp-user"), userMsg, { ...aiMsg, id:"temp-ai" }])
+    setMessages(prev => [...prev.filter(m => m.id !== "temp-user"), userMsg, { ...aiMsg, id: "temp-ai" }])
     setLoading(false)
   }
 
@@ -334,10 +338,10 @@ async function startConversation(otherUserId: string) {
     setCreating(true)
     const system_prompt = `You are ${newChar.name}. ${newChar.personality}.${newChar.speakingStyle ? " Speaking style: " + newChar.speakingStyle + "." : ""} Keep replies under 100 words. Never break character.`
     const { data, error } = await supabase.from("characters")
-      .insert({ name:newChar.name, emoji:newChar.emoji, system_prompt, created_by:session.user.id })
+      .insert({ name: newChar.name, emoji: newChar.emoji, system_prompt, created_by: session.user.id })
       .select().single()
     if (!error && data) { setCharacters(prev => [data, ...prev]); openChar(data); setMessages([]) }
-    setNewChar({ name:"", emoji:"🤖", personality:"", speakingStyle:"" })
+    setNewChar({ name: "", emoji: "🤖", personality: "", speakingStyle: "" })
     setShowForm(false); setCreating(false)
   }
 
@@ -347,33 +351,69 @@ async function startConversation(otherUserId: string) {
     if (activeChar?.id === id) { setActiveChar(null); setMessages([]) }
   }
 
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !activeConvo || !session) return
+    setUploadingImage(true)
+
+    try {
+      // Upload to Supabase Storage
+      const ext = file.name.split('.').pop()
+      const fileName = `${session.user.id}-${Date.now()}.${ext}`
+      const { data, error } = await supabase.storage
+        .from('chat-images')
+        .upload(fileName, file)
+
+      if (error) throw error
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-images')
+        .getPublicUrl(fileName)
+
+      // Send as message with [image]: prefix
+      await supabase.from("direct_messages").insert({
+        conversation_id: activeConvo.id,
+        sender_id: session.user.id,
+        content: `[image]:${publicUrl}`
+      })
+    } catch (err) {
+      alert("Failed to upload image")
+      console.error(err)
+    } finally {
+      setUploadingImage(false)
+      // Reset file input so same file can be selected again
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
+
   // ── AUTH SCREEN ───────────────────────────────────────────────
   if (!session) return (
     <>
       <style>{CSS}</style>
       <div style={S.authWrap}>
         <div style={S.authCard}>
-          <div style={{ fontSize:40, textAlign:"center" }}>🤖</div>
+          <div style={{ fontSize: 40, textAlign: "center" }}>🤖</div>
           <h1 style={S.authTitle}>CharacterChat</h1>
           <p style={S.authSub}>Talk to AI personas. Build your own.</p>
           <div style={S.authTabRow}>
-            {(["login","signup"] as const).map(m => (
+            {(["login", "signup"] as const).map(m => (
               <button key={m} onClick={() => { setAuthMode(m); setAuthError("") }}
-                style={{ ...S.authTab, ...(authMode===m ? S.authTabActive : {}) }}>
-                {m==="login" ? "Sign In" : "Sign Up"}
+                style={{ ...S.authTab, ...(authMode === m ? S.authTabActive : {}) }}>
+                {m === "login" ? "Sign In" : "Sign Up"}
               </button>
             ))}
           </div>
           <input style={S.authInput} placeholder="Email" type="email"
             value={email} onChange={e => setEmail(e.target.value)}
-            onKeyDown={e => e.key==="Enter" && handleAuth()} />
+            onKeyDown={e => e.key === "Enter" && handleAuth()} />
           <input style={S.authInput} placeholder="Password" type="password"
             value={password} onChange={e => setPassword(e.target.value)}
-            onKeyDown={e => e.key==="Enter" && handleAuth()} />
-          {authError && <p style={{ color:"#ff6b6b", fontSize:13, margin:0 }}>{authError}</p>}
-          {authMode==="signup" && <p style={{ color:WA.textMuted, fontSize:12, margin:0 }}>Check your email to confirm after signing up.</p>}
+            onKeyDown={e => e.key === "Enter" && handleAuth()} />
+          {authError && <p style={{ color: "#ff6b6b", fontSize: 13, margin: 0 }}>{authError}</p>}
+          {authMode === "signup" && <p style={{ color: WA.textMuted, fontSize: 12, margin: 0 }}>Check your email to confirm after signing up.</p>}
           <button style={S.authBtn} onClick={handleAuth} disabled={authLoading}>
-            {authLoading ? "..." : authMode==="login" ? "Sign In" : "Create Account"}
+            {authLoading ? "..." : authMode === "login" ? "Sign In" : "Create Account"}
           </button>
         </div>
       </div>
@@ -391,9 +431,9 @@ async function startConversation(otherUserId: string) {
 
           {/* Top bar */}
           <div style={S.sideTop}>
-            <span style={S.brand}>🤖 CharacterChat</span>
-            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-              <span style={{ fontSize:11, color:WA.textMuted, maxWidth:120, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+            <span style={S.brand}>Kikar</span>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: WA.textMuted, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {session.user.email?.split("@")[0]}
               </span>
               <button style={S.signOutBtn} onClick={() => supabase.auth.signOut()}>Out</button>
@@ -402,18 +442,18 @@ async function startConversation(otherUserId: string) {
 
           {/* AI / People tabs */}
           <div style={S.tabBar}>
-            <button style={{ ...S.tabBtn, ...(view==="ai" ? S.tabBtnActive : {}) }}
+            <button style={{ ...S.tabBtn, ...(view === "ai" ? S.tabBtnActive : {}) }}
               onClick={() => { setView("ai"); setActiveConvo(null) }}>
               🤖 AI Characters
             </button>
-            <button style={{ ...S.tabBtn, ...(view==="people" ? S.tabBtnActive : {}) }}
+            <button style={{ ...S.tabBtn, ...(view === "people" ? S.tabBtnActive : {}) }}
               onClick={() => { setView("people"); setActiveChar(null); setShowForm(false) }}>
               👥 People
             </button>
           </div>
 
           {/* AI list */}
-          {view==="ai" ? (
+          {view === "ai" ? (
             <div style={S.listWrap}>
               <button style={S.newCharBtn} onClick={openForm}>+ New Character</button>
               <div className="cc-charlist" style={S.charList}>
@@ -421,11 +461,11 @@ async function startConversation(otherUserId: string) {
                   ? <p style={S.dimText}>Loading…</p>
                   : characters.map(c => (
                     <div key={c.id}
-                      style={{ ...S.charItem, ...(activeChar?.id===c.id && !showForm ? S.charItemActive : {}) }}
+                      style={{ ...S.charItem, ...(activeChar?.id === c.id && !showForm ? S.charItemActive : {}) }}
                       onClick={() => openChar(c)}>
                       <span style={S.charEmoji}>{c.emoji}</span>
                       <span style={S.charName}>{c.name}</span>
-                      {c.created_by===session.user.id && (
+                      {c.created_by === session.user.id && (
                         <button style={S.delBtn}
                           onClick={e => { e.stopPropagation(); deleteCharacter(c.id) }}>✕</button>
                       )}
@@ -440,7 +480,7 @@ async function startConversation(otherUserId: string) {
               <div style={S.searchRow}>
                 <input style={S.searchInput} placeholder="Search by username…"
                   value={searchEmail} onChange={e => setSearchEmail(e.target.value)}
-                  onKeyDown={e => e.key==="Enter" && searchUser()} />
+                  onKeyDown={e => e.key === "Enter" && searchUser()} />
                 <button style={S.searchBtn} onClick={searchUser}>→</button>
               </div>
               {searchResult && (
@@ -448,16 +488,16 @@ async function startConversation(otherUserId: string) {
                   <span style={S.charEmoji}>👤</span>
                   <div>
                     <span style={S.charName}>{searchResult.display_name}</span>
-                    <span style={{ fontSize:11, color:WA.textMuted, display:"block" }}>{searchResult.email}</span>
+                    <span style={{ fontSize: 11, color: WA.textMuted, display: "block" }}>{searchResult.email}</span>
                   </div>
                 </div>
               )}
               <div className="cc-charlist" style={S.charList}>
                 {conversations.map(c => {
-                  const other = c.user1_id===session.user.id ? c.user2 : c.user1
+                  const other = c.user1_id === session.user.id ? c.user2 : c.user1
                   return (
                     <div key={c.id}
-                      style={{ ...S.charItem, ...(activeConvo?.id===c.id ? S.charItemActive : {}) }}
+                      style={{ ...S.charItem, ...(activeConvo?.id === c.id ? S.charItemActive : {}) }}
                       onClick={() => openConvo(c)}>
                       <span style={S.charEmoji}>👤</span>
                       <span style={S.charName}>{other?.email?.split("@")[0]}</span>
@@ -474,93 +514,113 @@ async function startConversation(otherUserId: string) {
         {/* ── MAIN ── */}
         <main className="cc-main">
 
-          {view==="people" && activeConvo ? (
+          {view === "people" && activeConvo ? (
             /* Active DM */
             <div style={S.chatWrap}>
               <div style={S.chatHeader}>
-  <button className="cc-back-btn" style={S.backBtn} onClick={goBack}>←</button>
-  <span style={{ fontSize:26 }}>👤</span>
-  <div style={{ flex:1 }}>
-    <div style={S.chatName}>
-      {activeConvo.user1_id===session.user.id
-        ? activeConvo.user2?.username
-        : activeConvo.user1?.username}
-    </div>
-    <div style={S.chatSub}>Direct Message</div>
-  </div>
-  <button
-    style={{
-      background: "transparent",
-      border: "1px solid #a855f7",
-      borderRadius: 8,
-      color: "#a855f7",
-      fontSize: 12,
-      fontWeight: 600,
-      cursor: "pointer",
-      padding: "6px 10px",
-      flexShrink: 0,
-      opacity: creating ? 0.5 : 1
-    }}
-    disabled={creating}
-    onClick={() => {
-      const other = activeConvo.user1_id === session.user.id
-        ? activeConvo.user2
-        : activeConvo.user1
-      createReplica(other, activeConvo.id)
-    }}
-  >
-    {creating ? "⏳" : "🪞 Replica"}
-  </button>
-</div>
-              <div className="cc-messages" style={S.messages}>
-                {directMessages.map((m, i) => (
-                  <div key={i} className="cc-bubble"
-                    style={{ ...S.bubble, ...(m.sender_id===session.user.id ? S.bubbleUser : S.bubbleAI) }}>
-                    {m.content}
+                <button className="cc-back-btn" style={S.backBtn} onClick={goBack}>←</button>
+                <span style={{ fontSize: 26 }}>👤</span>
+                <div style={{ flex: 1 }}>
+                  <div style={S.chatName}>
+                    {activeConvo.user1_id === session.user.id
+                      ? activeConvo.user2?.username
+                      : activeConvo.user1?.username}
                   </div>
-                ))}
+                  <div style={S.chatSub}>Direct Message</div>
+                </div>
+                <button
+                  style={{
+                    background: "transparent",
+                    border: "1px solid #a855f7",
+                    borderRadius: 8,
+                    color: "#a855f7",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    padding: "6px 10px",
+                    flexShrink: 0,
+                    opacity: creating ? 0.5 : 1
+                  }}
+                  disabled={creating}
+                  onClick={() => {
+                    const other = activeConvo.user1_id === session.user.id
+                      ? activeConvo.user2
+                      : activeConvo.user1
+                    createReplica(other, activeConvo.id)
+                  }}
+                >
+                  {creating ? "⏳" : "🪞 Replica"}
+                </button>
+              </div>
+              <div className="cc-messages" style={S.messages}>
+                {directMessages.map((m, i) => {
+  const isUser = m.sender_id === session.user.id
+  const isImage = m.content?.startsWith("[image]:")
+  const imageUrl = isImage ? m.content.replace("[image]:", "") : null
+  return (
+    <div key={i} style={{ display:"flex", flexDirection:"column", alignItems: isUser ? "flex-end" : "flex-start" }}>
+      <div className="cc-bubble"
+        style={{ ...S.bubble, ...(isUser ? S.bubbleUser : S.bubbleAI), ...(isImage ? { padding:4, background:"transparent" } : {}) }}>
+        {isImage
+          ? <img src={imageUrl!} style={{ maxWidth:220, maxHeight:280, borderRadius:10, display:"block", cursor:"pointer" }}
+              onClick={() => window.open(imageUrl!, '_blank')} />
+          : m.content}
+      </div>
+    </div>
+  )
+})}
                 <div ref={bottomRef} />
               </div>
               <div style={S.inputRow}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  ref={fileInputRef}
+                  onChange={handleImageUpload}
+                />
+                <button style={S.imgBtn} onClick={() => fileInputRef.current?.click()} disabled={uploadingImage}>
+                  {uploadingImage ? "⏳" : "🖼️"}
+                </button>
                 <input className="cc-chat-input" style={S.chatInput} value={input}
                   onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => e.key==="Enter" && sendDirectMessage()}
+                  onKeyDown={e => e.key === "Enter" && sendDirectMessage()}
                   placeholder="Type a message…" />
                 <button style={S.sendBtn} onClick={sendDirectMessage} disabled={!input.trim()}>↑</button>
               </div>
             </div>
 
-          ) : view==="people" && !activeConvo ? (
+          ) : view === "people" && !activeConvo ? (
             <div style={S.empty}>
-              <div style={{ fontSize:48 }}>👥</div>
+              <div style={{ fontSize: 48 }}>👥</div>
               <p style={S.emptyText}>Search for someone,<br />or select a conversation.</p>
             </div>
 
           ) : showForm ? (
             /* Create character form */
             <div style={S.formWrap}>
-              <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
                 <button className="cc-back-btn" style={S.backBtn} onClick={() => { setShowForm(false); goBack() }}>←</button>
-                <h2 style={{ ...S.formTitle, marginBottom:0 }}>Create a Character</h2>
+                <h2 style={{ ...S.formTitle, marginBottom: 0 }}>Create a Character</h2>
               </div>
               <label style={S.label}>Name</label>
               <input style={S.input} placeholder="e.g. Socrates"
-                value={newChar.name} onChange={e => setNewChar({ ...newChar, name:e.target.value })} />
+                value={newChar.name} onChange={e => setNewChar({ ...newChar, name: e.target.value })} />
               <label style={S.label}>Pick an Emoji</label>
               <div style={S.emojiGrid}>
                 {EMOJIS.map(em => (
                   <button key={em}
-                    style={{ ...S.emojiBtn, ...(newChar.emoji===em ? S.emojiBtnActive : {}) }}
-                    onClick={() => setNewChar({ ...newChar, emoji:em })}>{em}</button>
+                    style={{ ...S.emojiBtn, ...(newChar.emoji === em ? S.emojiBtnActive : {}) }}
+                    onClick={() => setNewChar({ ...newChar, emoji: em })}>{em}</button>
                 ))}
               </div>
               <label style={S.label}>Personality *</label>
               <textarea style={S.textarea} rows={3}
                 placeholder="e.g. A wise philosopher who questions everything"
-                value={newChar.personality} onChange={e => setNewChar({ ...newChar, personality:e.target.value })} />
+                value={newChar.personality} onChange={e => setNewChar({ ...newChar, personality: e.target.value })} />
               <label style={S.label}>Speaking Style (optional)</label>
               <input style={S.input} placeholder="e.g. Uses rhetorical questions, formal tone"
-                value={newChar.speakingStyle} onChange={e => setNewChar({ ...newChar, speakingStyle:e.target.value })} />
+                value={newChar.speakingStyle} onChange={e => setNewChar({ ...newChar, speakingStyle: e.target.value })} />
               <div style={S.formBtns}>
                 <button style={S.cancelBtn} onClick={() => { setShowForm(false); goBack() }}>Cancel</button>
                 <button style={S.createBtn} onClick={createCharacter} disabled={creating}>
@@ -571,7 +631,7 @@ async function startConversation(otherUserId: string) {
 
           ) : !activeChar ? (
             <div style={S.empty}>
-              <div style={{ fontSize:48 }}>💬</div>
+              <div style={{ fontSize: 48 }}>💬</div>
               <p style={S.emptyText}>Select a character to start chatting,<br />or create your own.</p>
               <button style={S.createBtn} onClick={openForm}>+ New Character</button>
             </div>
@@ -581,31 +641,31 @@ async function startConversation(otherUserId: string) {
             <div style={S.chatWrap}>
               <div style={S.chatHeader}>
                 <button className="cc-back-btn" style={S.backBtn} onClick={goBack}>←</button>
-                <span style={{ fontSize:26 }}>{activeChar.emoji}</span>
+                <span style={{ fontSize: 26 }}>{activeChar.emoji}</span>
                 <div>
                   <div style={S.chatName}>{activeChar.name}</div>
                   <div style={S.chatSub}>AI · your chat is private</div>
                 </div>
               </div>
               <div className="cc-messages" style={S.messages}>
-                {messages.length===0 && (
+                {messages.length === 0 && (
                   <p style={S.dimText}>Start the conversation with {activeChar.name}…</p>
                 )}
                 {messages.map((m, i) => {
                   const isImage = m.content?.startsWith("[image]:")
-                  const imageUrl = isImage ? m.content.replace("[image]:","") : null
+                  const imageUrl = isImage ? m.content.replace("[image]:", "") : null
                   return (
                     <div key={m.id ?? i} className="cc-bubble"
-                      style={{ ...S.bubble, ...(m.role==="user" ? S.bubbleUser : S.bubbleAI) }}>
+                      style={{ ...S.bubble, ...(m.role === "user" ? S.bubbleUser : S.bubbleAI) }}>
                       {isImage
-                        ? <img src={imageUrl} style={{ width:"100%", maxWidth:240, borderRadius:10, display:"block" }} />
+                        ? <img src={imageUrl} style={{ width: "100%", maxWidth: 240, borderRadius: 10, display: "block" }} />
                         : m.content}
                     </div>
                   )
                 })}
                 {loading && (
-                  <div className="cc-bubble" style={{ ...S.bubble, ...S.bubbleAI, opacity:0.5 }}>
-                    <span style={{ letterSpacing:2, color:WA.textMuted }}>●●●</span>
+                  <div className="cc-bubble" style={{ ...S.bubble, ...S.bubbleAI, opacity: 0.5 }}>
+                    <span style={{ letterSpacing: 2, color: WA.textMuted }}>●●●</span>
                   </div>
                 )}
                 <div ref={bottomRef} />
@@ -613,7 +673,7 @@ async function startConversation(otherUserId: string) {
               <div style={S.inputRow}>
                 <input className="cc-chat-input" style={S.chatInput} value={input}
                   onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => e.key==="Enter" && sendMessage()}
+                  onKeyDown={e => e.key === "Enter" && sendMessage()}
                   placeholder={`Message ${activeChar.name}…`} />
                 <button style={S.imgBtn} onClick={handleGenerateImage} disabled={!input.trim() || generatingImg}>
                   {generatingImg ? "⏳" : "🖼️"}
@@ -630,65 +690,65 @@ async function startConversation(otherUserId: string) {
 
 // ── STYLES ────────────────────────────────────────────────────
 const S: Record<string, React.CSSProperties> = {
-  authWrap:      { minHeight:"100dvh", display:"flex", alignItems:"center", justifyContent:"center", background:WA.bg, padding:16 },
-  authCard:      { background:WA.surface, border:`1px solid ${WA.border}`, borderRadius:16, padding:"40px 28px", width:"100%", maxWidth:380, display:"flex", flexDirection:"column", gap:12 },
-  authTitle:     { margin:0, textAlign:"center", fontSize:22, color:WA.textPrimary, fontWeight:700 },
-  authSub:       { margin:0, textAlign:"center", color:WA.textMuted, fontSize:14 },
-  authTabRow:    { display:"flex", borderRadius:8, overflow:"hidden", border:`1px solid ${WA.border}` },
-  authTab:       { flex:1, padding:"10px 0", background:"transparent", border:"none", color:WA.textMuted, cursor:"pointer", fontSize:14 },
-  authTabActive: { background:WA.surfaceAlt, color:WA.textPrimary, fontWeight:600 },
-  authInput:     { width:"100%", padding:"11px 14px", background:WA.surfaceAlt, border:`1px solid ${WA.border}`, borderRadius:10, color:WA.textPrimary, fontSize:15, outline:"none", boxSizing:"border-box" },
-  authBtn:       { padding:"14px 0", background:WA.green, border:"none", borderRadius:8, fontWeight:700, fontSize:15, cursor:"pointer", color:WA.bg, marginTop:4 },
+  authWrap: { minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", background: WA.bg, padding: 16 },
+  authCard: { background: WA.surface, border: `1px solid ${WA.border}`, borderRadius: 16, padding: "40px 28px", width: "100%", maxWidth: 380, display: "flex", flexDirection: "column", gap: 12 },
+  authTitle: { margin: 0, textAlign: "center", fontSize: 22, color: WA.textPrimary, fontWeight: 700 },
+  authSub: { margin: 0, textAlign: "center", color: WA.textMuted, fontSize: 14 },
+  authTabRow: { display: "flex", borderRadius: 8, overflow: "hidden", border: `1px solid ${WA.border}` },
+  authTab: { flex: 1, padding: "10px 0", background: "transparent", border: "none", color: WA.textMuted, cursor: "pointer", fontSize: 14 },
+  authTabActive: { background: WA.surfaceAlt, color: WA.textPrimary, fontWeight: 600 },
+  authInput: { width: "100%", padding: "11px 14px", background: WA.surfaceAlt, border: `1px solid ${WA.border}`, borderRadius: 10, color: WA.textPrimary, fontSize: 15, outline: "none", boxSizing: "border-box" },
+  authBtn: { padding: "14px 0", background: WA.green, border: "none", borderRadius: 8, fontWeight: 700, fontSize: 15, cursor: "pointer", color: WA.bg, marginTop: 4 },
 
-  sideTop:       { display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", background:WA.surface, flexShrink:0 },
-  brand:         { fontWeight:700, fontSize:15, color:WA.textPrimary },
-  signOutBtn:    { background:WA.surfaceAlt, border:`1px solid ${WA.border}`, color:WA.textMuted, fontSize:12, borderRadius:6, padding:"4px 10px", cursor:"pointer" },
+  sideTop: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: WA.surface, flexShrink: 0 },
+  brand: { fontWeight: 700, fontSize: 15, color: WA.textPrimary },
+  signOutBtn: { background: WA.surfaceAlt, border: `1px solid ${WA.border}`, color: WA.textMuted, fontSize: 12, borderRadius: 6, padding: "4px 10px", cursor: "pointer" },
 
-  tabBar:        { display:"flex", borderBottom:`1px solid ${WA.border}`, flexShrink:0 },
-  tabBtn:        { flex:1, padding:"11px 0", background:"transparent", border:"none", borderBottom:"2px solid transparent", color:WA.textMuted, fontSize:13, fontWeight:500, cursor:"pointer" },
-  tabBtnActive:  { color:WA.green, borderBottomColor:WA.green },
+  tabBar: { display: "flex", borderBottom: `1px solid ${WA.border}`, flexShrink: 0 },
+  tabBtn: { flex: 1, padding: "11px 0", background: "transparent", border: "none", borderBottom: "2px solid transparent", color: WA.textMuted, fontSize: 13, fontWeight: 500, cursor: "pointer" },
+  tabBtnActive: { color: WA.green, borderBottomColor: WA.green },
 
-  listWrap:      { flex:1, display:"flex", flexDirection:"column", overflow:"hidden" },
-  newCharBtn:    { margin:"10px 12px 4px", padding:"10px 0", background:"transparent", border:`1px dashed ${WA.green}55`, borderRadius:8, color:WA.green, fontSize:13, fontWeight:600, cursor:"pointer", flexShrink:0 },
-  charList:      { flex:1, overflowY:"auto", display:"flex", flexDirection:"column" },
-  charItem:      { display:"flex", alignItems:"center", gap:10, padding:"12px 16px", cursor:"pointer", borderBottom:`1px solid ${WA.border}22` },
-  charItemActive:{ background:WA.surfaceAlt },
-  charEmoji:     { fontSize:22, flexShrink:0 },
-  charName:      { fontSize:14, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color:WA.textPrimary },
-  delBtn:        { background:"transparent", border:"none", color:"#555", cursor:"pointer", fontSize:12, padding:"2px 6px", flexShrink:0 },
-  userEmail:     { fontSize:11, color:"#444", padding:"8px 16px", flexShrink:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" },
+  listWrap: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" },
+  newCharBtn: { margin: "10px 12px 4px", padding: "10px 0", background: "transparent", border: `1px dashed ${WA.green}55`, borderRadius: 8, color: WA.green, fontSize: 13, fontWeight: 600, cursor: "pointer", flexShrink: 0 },
+  charList: { flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" },
+  charItem: { display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", cursor: "pointer", borderBottom: `1px solid ${WA.border}22` },
+  charItemActive: { background: WA.surfaceAlt },
+  charEmoji: { fontSize: 22, flexShrink: 0 },
+  charName: { fontSize: 14, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: WA.textPrimary },
+  delBtn: { background: "transparent", border: "none", color: "#555", cursor: "pointer", fontSize: 12, padding: "2px 6px", flexShrink: 0 },
+  userEmail: { fontSize: 11, color: "#444", padding: "8px 16px", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
 
-  searchRow:     { display:"flex", gap:6, padding:"10px 12px", flexShrink:0 },
-  searchInput:   { flex:1, padding:"9px 12px", background:WA.surface, border:`1px solid ${WA.border}`, borderRadius:8, color:WA.textPrimary, fontSize:13, outline:"none" },
-  searchBtn:     { width:36, height:36, background:WA.green, border:"none", borderRadius:8, color:WA.bg, fontWeight:700, cursor:"pointer", fontSize:16, flexShrink:0 },
+  searchRow: { display: "flex", gap: 6, padding: "10px 12px", flexShrink: 0 },
+  searchInput: { flex: 1, padding: "9px 12px", background: WA.surface, border: `1px solid ${WA.border}`, borderRadius: 8, color: WA.textPrimary, fontSize: 13, outline: "none" },
+  searchBtn: { width: 36, height: 36, background: WA.green, border: "none", borderRadius: 8, color: WA.bg, fontWeight: 700, cursor: "pointer", fontSize: 16, flexShrink: 0 },
 
-  backBtn:       { alignItems:"center", justifyContent:"center", background:"transparent", border:"none", color:WA.textPrimary, fontSize:22, cursor:"pointer", padding:"0 10px 0 0", flexShrink:0, lineHeight:1 },
+  backBtn: { alignItems: "center", justifyContent: "center", background: "transparent", border: "none", color: WA.textPrimary, fontSize: 22, cursor: "pointer", padding: "0 10px 0 0", flexShrink: 0, lineHeight: 1 },
 
-  chatWrap:      { display:"flex", flexDirection:"column", flex:1, overflow:"hidden", height:"100%" },
-  chatHeader:    { display:"flex", alignItems:"center", gap:10, padding:"10px 16px", background:WA.surface, borderBottom:`1px solid ${WA.border}`, flexShrink:0 },
-  chatName:      { fontSize:15, fontWeight:600, color:WA.textPrimary },
-  chatSub:       { fontSize:11, color:WA.textMuted },
-  messages:      { flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:4 },
-  bubble:        { padding:"8px 12px", borderRadius:8, lineHeight:1.5, fontSize:14, wordBreak:"break-word" },
-  bubbleUser:    { background:WA.greenDark, color:WA.textPrimary, alignSelf:"flex-end", borderTopRightRadius:0 },
-  bubbleAI:      { background:WA.surface, color:WA.textPrimary, alignSelf:"flex-start", borderTopLeftRadius:0 },
-  inputRow:      { display:"flex", gap:8, padding:"8px 12px", background:WA.surface, borderTop:`1px solid ${WA.border}`, flexShrink:0, paddingBottom:"max(8px,env(safe-area-inset-bottom))" },
-  chatInput:     { flex:1, padding:"10px 14px", background:WA.surfaceAlt, border:"none", borderRadius:24, color:WA.textPrimary, outline:"none" },
-  sendBtn:       { width:44, height:44, borderRadius:"50%", background:WA.green, border:"none", fontSize:20, cursor:"pointer", color:WA.bg, fontWeight:700, flexShrink:0 },
-  imgBtn:        { width:44, height:44, borderRadius:"50%", background:WA.surfaceAlt, border:`1px solid ${WA.border}`, fontSize:18, cursor:"pointer", flexShrink:0 },
+  chatWrap: { display: "flex", flexDirection: "column", flex: 1, overflow: "hidden", height: "100%" },
+  chatHeader: { display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: WA.surface, borderBottom: `1px solid ${WA.border}`, flexShrink: 0 },
+  chatName: { fontSize: 15, fontWeight: 600, color: WA.textPrimary },
+  chatSub: { fontSize: 11, color: WA.textMuted },
+  messages: { flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 },
+  bubble: { padding: "8px 12px", borderRadius: 8, lineHeight: 1.5, fontSize: 14, wordBreak: "break-word" },
+  bubbleUser: { background: WA.greenDark, color: WA.textPrimary, alignSelf: "flex-end", borderTopRightRadius: 0 },
+  bubbleAI: { background: WA.surface, color: WA.textPrimary, alignSelf: "flex-start", borderTopLeftRadius: 0 },
+  inputRow: { display: "flex", gap: 8, padding: "8px 12px", background: WA.surface, borderTop: `1px solid ${WA.border}`, flexShrink: 0, paddingBottom: "max(8px,env(safe-area-inset-bottom))" },
+  chatInput: { flex: 1, padding: "10px 14px", background: WA.surfaceAlt, border: "none", borderRadius: 24, color: WA.textPrimary, outline: "none" },
+  sendBtn: { width: 44, height: 44, borderRadius: "50%", background: WA.green, border: "none", fontSize: 20, cursor: "pointer", color: WA.bg, fontWeight: 700, flexShrink: 0 },
+  imgBtn: { width: 44, height: 44, borderRadius: "50%", background: WA.surfaceAlt, border: `1px solid ${WA.border}`, fontSize: 18, cursor: "pointer", flexShrink: 0 },
 
-  empty:         { flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12, padding:24 },
-  emptyText:     { color:WA.textMuted, fontSize:15, textAlign:"center", lineHeight:1.6 },
-  formWrap:      { flex:1, overflowY:"auto", padding:24 },
-  formTitle:     { fontSize:18, fontWeight:700, color:WA.textPrimary, marginBottom:16 },
-  label:         { fontSize:12, color:WA.textMuted, display:"block", marginBottom:4, marginTop:14, textTransform:"uppercase", letterSpacing:"0.5px" },
-  input:         { width:"100%", padding:"11px 14px", background:WA.surface, border:`1px solid ${WA.border}`, borderRadius:10, color:WA.textPrimary, fontSize:14, outline:"none", boxSizing:"border-box" },
-  textarea:      { width:"100%", padding:"11px 14px", background:WA.surface, border:`1px solid ${WA.border}`, borderRadius:10, color:WA.textPrimary, fontSize:14, outline:"none", resize:"vertical", boxSizing:"border-box" },
-  emojiGrid:     { display:"flex", flexWrap:"wrap", gap:8, marginTop:4 },
-  emojiBtn:      { fontSize:22, padding:8, background:WA.surface, border:`1px solid ${WA.border}`, borderRadius:8, cursor:"pointer" },
-  emojiBtnActive:{ borderColor:WA.green, background:`${WA.green}18` },
-  formBtns:      { display:"flex", gap:10, marginTop:24 },
-  cancelBtn:     { flex:1, padding:"12px 0", background:"transparent", border:`1px solid ${WA.border}`, borderRadius:8, color:WA.textMuted, fontSize:14, cursor:"pointer" },
-  createBtn:     { flex:2, padding:"12px 0", background:WA.green, border:"none", borderRadius:8, fontWeight:700, fontSize:14, cursor:"pointer", color:WA.bg },
-  dimText:       { color:WA.textMuted, fontSize:14, padding:"20px 16px" },
+  empty: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 24 },
+  emptyText: { color: WA.textMuted, fontSize: 15, textAlign: "center", lineHeight: 1.6 },
+  formWrap: { flex: 1, overflowY: "auto", padding: 24 },
+  formTitle: { fontSize: 18, fontWeight: 700, color: WA.textPrimary, marginBottom: 16 },
+  label: { fontSize: 12, color: WA.textMuted, display: "block", marginBottom: 4, marginTop: 14, textTransform: "uppercase", letterSpacing: "0.5px" },
+  input: { width: "100%", padding: "11px 14px", background: WA.surface, border: `1px solid ${WA.border}`, borderRadius: 10, color: WA.textPrimary, fontSize: 14, outline: "none", boxSizing: "border-box" },
+  textarea: { width: "100%", padding: "11px 14px", background: WA.surface, border: `1px solid ${WA.border}`, borderRadius: 10, color: WA.textPrimary, fontSize: 14, outline: "none", resize: "vertical", boxSizing: "border-box" },
+  emojiGrid: { display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 },
+  emojiBtn: { fontSize: 22, padding: 8, background: WA.surface, border: `1px solid ${WA.border}`, borderRadius: 8, cursor: "pointer" },
+  emojiBtnActive: { borderColor: WA.green, background: `${WA.green}18` },
+  formBtns: { display: "flex", gap: 10, marginTop: 24 },
+  cancelBtn: { flex: 1, padding: "12px 0", background: "transparent", border: `1px solid ${WA.border}`, borderRadius: 8, color: WA.textMuted, fontSize: 14, cursor: "pointer" },
+  createBtn: { flex: 2, padding: "12px 0", background: WA.green, border: "none", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: "pointer", color: WA.bg },
+  dimText: { color: WA.textMuted, fontSize: 14, padding: "20px 16px" },
 }
