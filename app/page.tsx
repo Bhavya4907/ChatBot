@@ -502,32 +502,29 @@ export default function Home() {
     }
   }
 
-  async function initPushNotifications() {
-    // Check if running in Capacitor (Android)
-    if (!(window as any).Capacitor) return
+async function initPushNotifications(userId: string) {
+  if (!(window as any).Capacitor) return
 
-    const permission = await PushNotifications.requestPermissions()
-    if (permission.receive !== 'granted') return
+  const permission = await PushNotifications.requestPermissions()
+  if (permission.receive !== 'granted') return
 
-    await PushNotifications.register()
+  await PushNotifications.register()
 
-    PushNotifications.addListener('registration', token => {
-      console.log('Push token:', token.value)
-      // Save token to Supabase for server-side push
-      supabase.from("profiles")
-        .update({ push_token: token.value })
-        .eq("id", session.user.id)
-        .then(() => { })
-    })
+  PushNotifications.addListener('registration', token => {
+    supabase.from("profiles")
+      .update({ push_token: token.value })
+      .eq("id", userId)  // ← uses the parameter not session
+      .then(() => {})
+  })
 
-    PushNotifications.addListener('pushNotificationReceived', notification => {
-      console.log('Push received:', notification)
-    })
+  PushNotifications.addListener('pushNotificationReceived', notification => {
+    console.log('Push received:', notification)
+  })
 
-    PushNotifications.addListener('pushNotificationActionPerformed', action => {
-      console.log('Push action:', action)
-    })
-  }
+  PushNotifications.addListener('pushNotificationActionPerformed', action => {
+    console.log('Push action:', action)
+  })
+}
 
   // ── AUTH SCREEN ───────────────────────────────────────────────
   if (!session) return (
