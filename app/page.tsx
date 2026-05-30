@@ -282,8 +282,6 @@ export default function Home() {
     })
   }
 
-
-
   async function searchUser() {
     if (!searchEmail.trim()) return
     const { data } = await supabase
