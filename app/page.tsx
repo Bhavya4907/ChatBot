@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useRef, useState } from "react"
 import { createClient } from "@supabase/supabase-js"
+import { PushNotifications } from '@capacitor/push-notifications'
 
 const supabase = createClient(
   "https://dhykgbrhfjdlkuyswmat.supabase.co",
@@ -117,9 +118,17 @@ export default function Home() {
       .channel(`convo-${activeConvo.id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "direct_messages" },
         (p) => {
-          // manually filter client-side
           if (p.new.conversation_id === activeConvo.id) {
             setDirectMessages(prev => [...prev, p.new])
+            // Notify if message is from the other person
+            if (p.new.sender_id !== session.user.id) {
+              const other = activeConvo.user1_id === session.user.id
+                ? activeConvo.user2
+                : activeConvo.user1
+              const name = other?.display_name || other?.username || "Someone"
+              const isImage = p.new.content?.startsWith("[image]:")
+              showNotification(name, isImage ? "📷 Sent an image" : p.new.content)
+            }
           }
         })
       .subscribe()
@@ -150,6 +159,32 @@ export default function Home() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, directMessages, loading])
+
+  useEffect(() => {
+    if (!session) return
+    const ch = supabase
+      .channel("global-dm-notifications")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "direct_messages" },
+        async (p) => {
+          // Only notify if message is for us and we're not already in that convo
+          if (p.new.sender_id === session.user.id) return
+          if (activeConvo?.id === p.new.conversation_id) return
+
+          // Check if this message is in one of our conversations
+          const convo = conversations.find(c => c.id === p.new.conversation_id)
+          if (!convo) return
+
+          const other = convo.user1_id === session.user.id ? convo.user2 : convo.user1
+          const name = other?.display_name || other?.username || "Someone"
+          const isImage = p.new.content?.startsWith("[image]:")
+          showNotification(
+            `New message from ${name}`,
+            isImage ? "📷 Sent an image" : p.new.content
+          )
+        })
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [session, conversations, activeConvo])
 
   useEffect(() => {
     if (!session) return
@@ -203,6 +238,22 @@ export default function Home() {
     }
   }, [session])
 
+
+  useEffect(() => {
+  requestNotificationPermission()
+  
+  supabase.auth.getSession().then(({ data }) => {
+    setSession(data.session)
+    if (data.session) initPushNotifications(data.session.user.id)
+  })
+
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
+    setSession(s)
+    if (s) initPushNotifications(s.user.id)
+  })
+
+  return () => subscription.unsubscribe()
+}, [])
   // ── Navigation helpers ────────────────────────────────────────
 
   function openChar(c: any) {
@@ -231,6 +282,8 @@ export default function Home() {
     })
   }
 
+
+
   async function searchUser() {
     if (!searchEmail.trim()) return
     const { data } = await supabase
@@ -243,9 +296,6 @@ export default function Home() {
   }
 
   async function createReplica(otherUser: any, convoId: string) {
-
-
-
     if (!session) return
     setCreating(true)
     console.log("1. otherUser:", otherUser)
@@ -287,8 +337,6 @@ export default function Home() {
       )
     })
 
-
-
     const data = await res.json()
     console.log("5. API response:", data)
     const system_prompt = `${data.reply} Never break character. Match the original person's typical message length and style exactly.`
@@ -320,6 +368,19 @@ export default function Home() {
       openChar(char)
     }
     setCreating(false)
+  }
+
+  async function requestNotificationPermission() {
+    if (!("Notification" in window)) return
+    if (Notification.permission === "default") {
+      await Notification.requestPermission()
+    }
+  }
+
+  function showNotification(title: string, body: string, icon = "🤖") {
+    if (Notification.permission !== "granted") return
+    if (document.visibilityState === "visible") return // don't show if app is open
+    new Notification(title, { body, icon: "/favicon.ico" })
   }
 
   async function startConversation(otherUserId: string) {
@@ -383,6 +444,7 @@ export default function Home() {
     const aiMsg = { role: "assistant", content: data.reply, character_id: activeChar.id, user_id: session.user.id }
     await supabase.from("messages").insert(aiMsg)
     setMessages(prev => [...prev.filter(m => m.id !== "temp-user"), userMsg, { ...aiMsg, id: "temp-ai" }])
+    showNotification(activeChar.name, data.reply) // ← add this
     setLoading(false)
   }
 
@@ -438,6 +500,33 @@ export default function Home() {
       // Reset file input so same file can be selected again
       if (fileInputRef.current) fileInputRef.current.value = ""
     }
+  }
+
+  async function initPushNotifications() {
+    // Check if running in Capacitor (Android)
+    if (!(window as any).Capacitor) return
+
+    const permission = await PushNotifications.requestPermissions()
+    if (permission.receive !== 'granted') return
+
+    await PushNotifications.register()
+
+    PushNotifications.addListener('registration', token => {
+      console.log('Push token:', token.value)
+      // Save token to Supabase for server-side push
+      supabase.from("profiles")
+        .update({ push_token: token.value })
+        .eq("id", session.user.id)
+        .then(() => { })
+    })
+
+    PushNotifications.addListener('pushNotificationReceived', notification => {
+      console.log('Push received:', notification)
+    })
+
+    PushNotifications.addListener('pushNotificationActionPerformed', action => {
+      console.log('Push action:', action)
+    })
   }
 
   // ── AUTH SCREEN ───────────────────────────────────────────────
@@ -624,17 +713,19 @@ export default function Home() {
                       ? activeConvo.user2?.username
                       : activeConvo.user1?.username}
                   </div>
-                  <div style={{ fontSize:11, color: (() => {
-  const other = activeConvo.user1_id === session.user.id ? activeConvo.user2 : activeConvo.user1
-  const profile = allProfiles.find(p => p.id === other?.id)
-  return profile?.is_online ? "#22c55e" : WA.textMuted
-})() }}>
-  {(() => {
-    const other = activeConvo.user1_id === session.user.id ? activeConvo.user2 : activeConvo.user1
-    const profile = allProfiles.find(p => p.id === other?.id)
-    return profile?.is_online ? "● Online" : "● Offline"
-  })()}
-</div>
+                  <div style={{
+                    fontSize: 11, color: (() => {
+                      const other = activeConvo.user1_id === session.user.id ? activeConvo.user2 : activeConvo.user1
+                      const profile = allProfiles.find(p => p.id === other?.id)
+                      return profile?.is_online ? "#22c55e" : WA.textMuted
+                    })()
+                  }}>
+                    {(() => {
+                      const other = activeConvo.user1_id === session.user.id ? activeConvo.user2 : activeConvo.user1
+                      const profile = allProfiles.find(p => p.id === other?.id)
+                      return profile?.is_online ? "● Online" : "● Offline"
+                    })()}
+                  </div>
                 </div>
                 <button
                   style={{
@@ -661,12 +752,29 @@ export default function Home() {
                 </button>
               </div>
               <div className="cc-messages" style={S.messages}>
-                {directMessages.map((m, i) => (
-                  <div key={i} className="cc-bubble"
-                    style={{ ...S.bubble, ...(m.sender_id === session.user.id ? S.bubbleUser : S.bubbleAI) }}>
-                    {m.content}
-                  </div>
-                ))}
+                {directMessages.map((m, i) => {
+                  const isUser = m.sender_id === session.user.id
+                  const isImage = m.content?.startsWith("[image]:")
+                  const imageUrl = isImage ? m.content.replace("[image]:", "") : null
+                  return (
+                    <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: isUser ? "flex-end" : "flex-start" }}>
+                      <div className="cc-bubble"
+                        style={{
+                          ...S.bubble,
+                          ...(isUser ? S.bubbleUser : S.bubbleAI),
+                          ...(isImage ? { padding: 4, background: "transparent" } : {})
+                        }}>
+                        {isImage
+                          ? <img
+                            src={imageUrl!}
+                            style={{ maxWidth: 220, maxHeight: 280, borderRadius: 10, display: "block", cursor: "pointer" }}
+                            onClick={() => window.open(imageUrl!, '_blank')}
+                          />
+                          : m.content}
+                      </div>
+                    </div>
+                  )
+                })}
                 <div ref={bottomRef} />
               </div>
               <div style={S.inputRow}>
