@@ -179,29 +179,6 @@ Open Android Studio
 npx cap open android
 ```
 
----
-
-## 📸 Screenshots
-
-Add screenshots here.
-
-```
-screenshots/
-    login.png
-    chat.png
-    characters.png
-    profile.png
-```
-
-Example:
-
-```md
-![Login](screenshots/login.png)
-
-![Chat](screenshots/chat.png)
-```
-
----
 
 ## 🎯 Future Improvements
 
