@@ -80,12 +80,16 @@ export default function Home() {
   // ── Load conversations ────────────────────────────────────────
   useEffect(() => {
     if (!session) return
-    supabase
-      .from("conversations")
-      .select("*, user1:user1_id(id,username,display_name,avatar_url), user2:user2_id(id,username,display_name,avatar_url)")
-      .or(`user1_id.eq.${session.user.id},user2_id.eq.${session.user.id}`)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => setConversations(data || []))
+  supabase
+    .from("conversations")
+    .select(`
+      *,
+      user1:profiles!conversations_user1_id_fkey(id,username,display_name,avatar_url),
+      user2:profiles!conversations_user2_id_fkey(id,username,display_name,avatar_url)
+    `)
+    .or(`user1_id.eq.${session.user.id},user2_id.eq.${session.user.id}`)
+    .order("created_at", { ascending: false })
+    .then(({ data }) => setConversations(data || []))
   }, [session])
 
   // ── Load profile ──────────────────────────────────────────────
@@ -186,13 +190,21 @@ export default function Home() {
   async function startConversation(otherUserId: string) {
     const { data: existing } = await supabase
       .from("conversations")
-      .select("*, user1:user1_id(id,username,display_name,avatar_url), user2:user2_id(id,username,display_name,avatar_url)")
-      .or(`and(user1_id.eq.${session.user.id},user2_id.eq.${otherUserId}),and(user1_id.eq.${otherUserId},user2_id.eq.${session.user.id})`)
+      .select(`
+        *,
+        user1:profiles!conversations_user1_id_fkey(id,username,display_name,avatar_url),
+        user2:profiles!conversations_user2_id_fkey(id,username,display_name,avatar_url)
+      `)
+        .or(`and(user1_id.eq.${session.user.id},user2_id.eq.${otherUserId}),and(user1_id.eq.${otherUserId},user2_id.eq.${session.user.id})`)
       .maybeSingle()
     if (existing) { openConvo(existing); return }
     const { data } = await supabase.from("conversations")
       .insert({ user1_id: session.user.id, user2_id: otherUserId })
-      .select("*, user1:user1_id(id,username,display_name,avatar_url), user2:user2_id(id,username,display_name,avatar_url)")
+      .select(`
+        *,
+        user1:profiles!conversations_user1_id_fkey(id,username,display_name,avatar_url),
+        user2:profiles!conversations_user2_id_fkey(id,username,display_name,avatar_url)
+      `)
       .single()
     if (data) { setConversations(prev => [data, ...prev]); openConvo(data) }
   }
