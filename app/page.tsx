@@ -80,16 +80,25 @@ export default function Home() {
   // ── Load conversations ────────────────────────────────────────
   useEffect(() => {
     if (!session) return
+  // Load conversations — no join, just raw IDs
   supabase
     .from("conversations")
-    .select(`
-      *,
-      user1:profiles!conversations_user1_id_fkey(id,username,display_name,avatar_url),
-      user2:profiles!conversations_user2_id_fkey(id,username,display_name,avatar_url)
-    `)
+    .select("*")
     .or(`user1_id.eq.${session.user.id},user2_id.eq.${session.user.id}`)
     .order("created_at", { ascending: false })
-    .then(({ data }) => setConversations(data || []))
+    .then(async ({ data }) => {
+      if (!data) return
+      // Enrich with profile data
+      const ids = [...new Set(data.flatMap(c => [c.user1_id, c.user2_id]))]
+      const { data: profiles } = await supabase.from("profiles").select("id,username,display_name,avatar_url").in("id", ids)
+      const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]))
+      const enriched = data.map(c => ({
+        ...c,
+        user1: profileMap[c.user1_id] || null,
+        user2: profileMap[c.user2_id] || null,
+      }))
+      setConversations(enriched)
+    })
   }, [session])
 
   // ── Load profile ──────────────────────────────────────────────
@@ -190,23 +199,32 @@ export default function Home() {
   async function startConversation(otherUserId: string) {
     const { data: existing } = await supabase
       .from("conversations")
-      .select(`
-        *,
-        user1:profiles!conversations_user1_id_fkey(id,username,display_name,avatar_url),
-        user2:profiles!conversations_user2_id_fkey(id,username,display_name,avatar_url)
-      `)
-        .or(`and(user1_id.eq.${session.user.id},user2_id.eq.${otherUserId}),and(user1_id.eq.${otherUserId},user2_id.eq.${session.user.id})`)
+      .select("*")
+      .or(`and(user1_id.eq.${session.user.id},user2_id.eq.${otherUserId}),and(user1_id.eq.${otherUserId},user2_id.eq.${session.user.id})`)
       .maybeSingle()
-    if (existing) { openConvo(existing); return }
-    const { data } = await supabase.from("conversations")
+  
+    if (existing) {
+      const ids = [existing.user1_id, existing.user2_id]
+      const { data: profiles } = await supabase.from("profiles").select("id,username,display_name,avatar_url").in("id", ids)
+      const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]))
+      openConvo({ ...existing, user1: profileMap[existing.user1_id], user2: profileMap[existing.user2_id] })
+      return
+    }
+  
+    const { data } = await supabase
+      .from("conversations")
       .insert({ user1_id: session.user.id, user2_id: otherUserId })
-      .select(`
-        *,
-        user1:profiles!conversations_user1_id_fkey(id,username,display_name,avatar_url),
-        user2:profiles!conversations_user2_id_fkey(id,username,display_name,avatar_url)
-      `)
+      .select("*")
       .single()
-    if (data) { setConversations(prev => [data, ...prev]); openConvo(data) }
+  
+    if (data) {
+      const ids = [data.user1_id, data.user2_id]
+      const { data: profiles } = await supabase.from("profiles").select("id,username,display_name,avatar_url").in("id", ids)
+      const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]))
+      const enriched = { ...data, user1: profileMap[data.user1_id], user2: profileMap[data.user2_id] }
+      setConversations(prev => [enriched, ...prev])
+      openConvo(enriched)
+    }
   }
 
   async function deleteCharacter(id: string) {
