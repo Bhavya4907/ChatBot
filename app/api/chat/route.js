@@ -1,3 +1,13 @@
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+}
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: corsHeaders })
+}
+
 export async function POST(request) {
   const { messages, systemPrompt, maxTokens } = await request.json()
 
@@ -18,12 +28,11 @@ export async function POST(request) {
   })
 
   const data = await res.json()
-  console.log("Groq raw response:", JSON.stringify(data))
 
   if (!data.choices || !data.choices[0]) {
     console.error("Groq error:", data)
-    return Response.json({ reply: null, error: data })
+    return Response.json({ reply: null, error: data }, { headers: corsHeaders })
   }
 
-  return Response.json({ reply: data.choices[0].message.content })
+  return Response.json({ reply: data.choices[0].message.content }, { headers: corsHeaders })
 }
