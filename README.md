@@ -1,46 +1,106 @@
-# 🤖 Kikar
+# 🤖 KIKAR
 
-An AI-powered chat application built with **Next.js**, **Supabase**, **GROQ**, and **Capacitor**. The application allows users to chat with AI-generated characters, create custom personalities, communicate with other users through direct messages, and receive push notifications on Android.
+An AI-powered social messaging platform built with **Next.js**, **Supabase**, **GROQ**, and **Capacitor**. Beyond traditional AI chat, the application can generate **personalized AI personas** by analyzing a user's conversation history, enabling realistic interactions that reflect their unique communication style.
+
+Whether users want to chat with custom AI characters, create an AI version of themselves, or connect with other users, ChatBot provides a modern, cross-platform messaging experience.
 
 ---
 
 ## ✨ Features
 
-* 🔐 User Authentication (Sign Up / Login)
-* 🤖 Chat with AI-powered characters
-* 🎭 Create and manage custom AI characters
-* 💬 Real-time messaging
-* 👥 Direct messaging between users
-* 👤 User profiles
-* 🔔 Push notifications (Android)
-* 📱 Mobile support using Capacitor
-* ☁️ Supabase backend for authentication and database
+### 🤖 AI Personas
+
+* Generate personalized AI personas based on conversation history.
+* AI adapts to a user's communication style, tone, and personality.
+* Continue conversations with an AI version of a user even when they are offline.
+* Create and manage custom AI characters with unique personalities.
+
+### 💬 Messaging
+
+* Real-time chat interface.
+* Direct messaging between users.
+* AI-powered conversations using Google Gemini.
+
+### 👤 User Management
+
+* Secure authentication using Supabase Auth.
+* User profiles.
+* Persistent chat history.
+
+### 📱 Mobile Support
+
+* Android support using Capacitor.
+* Push notifications.
+
+### ☁️ Backend
+
+* Supabase Database
+* Authentication
+* Cloud storage
+* Scalable architecture
 
 ---
 
 ## 🛠️ Tech Stack
 
-### Frontend
+**Frontend**
 
-* Next.js 16
-* React 19
+* Next.js
+* React
 * TypeScript
 * Tailwind CSS
 
-### Backend & Services
+**Backend**
 
 * Supabase
-
-  * Authentication
-  * Database
 * GROQ
 
-### Mobile
+**Mobile**
 
 * Capacitor
 * Android
 
 ---
+
+## 🧠 How AI Personas Work
+
+```text
+User Conversations
+        │
+        ▼
+Conversation History
+        │
+        ▼
+Personality Analysis
+(Tone • Style • Vocabulary • Behaviour)
+        │
+        ▼
+Prompt Generation
+        │
+        ▼
+GROQ
+        │
+        ▼
+Personalized AI Persona
+```
+
+The application analyzes previous conversations to identify communication patterns and personality traits. These insights are used to construct prompts that allow the AI to generate responses closely aligned with the user's messaging style.
+
+> **Privacy Notice:** AI persona generation is designed for users who choose to enable this feature. Conversation data is used only to create personalized AI interactions within the application.
+
+---
+
+## 🚀 Future Improvements
+
+* 🎙️ Voice conversations
+* 🖼️ AI image generation
+* 😊 Emotion-aware responses
+* 👥 Group chats
+* 🤝 Friend requests
+* 📖 Long-term AI memory
+* 📞 Voice and video calling
+* 🌙 Dynamic mood adaptation based on time and conversation context
+
 
 ## 📂 Project Structure
 
