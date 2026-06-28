@@ -175,9 +175,4 @@ This project is licensed under the MIT License.
 
 ---
 
-## 👨‍💻 Author
-
-**Bhavya Sharma**
-
-GitHub: https://github.com/Bhavya4907
 
