@@ -1,6 +1,6 @@
 # 🤖 Kikar
 
-An AI-powered chat application built with **Next.js**, **Supabase**, **Google Gemini AI**, and **Capacitor**. The application allows users to chat with AI-generated characters, create custom personalities, communicate with other users through direct messages, and receive push notifications on Android.
+An AI-powered chat application built with **Next.js**, **Supabase**, **GROQ**, and **Capacitor**. The application allows users to chat with AI-generated characters, create custom personalities, communicate with other users through direct messages, and receive push notifications on Android.
 
 ---
 
@@ -33,7 +33,7 @@ An AI-powered chat application built with **Next.js**, **Supabase**, **Google Ge
 
   * Authentication
   * Database
-* Google Gemini AI API
+* GROQ
 
 ### Mobile
 
