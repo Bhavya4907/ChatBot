@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "575771641089",
+    "project_id": "kikar-f10e9",
+    "storage_bucket": "kikar-f10e9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:575771641089:android:de763a84f6c75be2b18700",
+        "android_client_info": {
+          "package_name": "com.Paneer.Kikar"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAU5kqllDxL4E6aDZiyoH4jRX6u3SGNvBk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
