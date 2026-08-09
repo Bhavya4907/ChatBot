@@ -1,5 +1,6 @@
 "use client"
 import React, { Suspense, useState } from "react"
+import Link from "next/link"
 import ElectricBorder from "./ElectricBorder"
 
 const Spline = React.lazy(() => import("@splinetool/react-spline"))
@@ -96,11 +97,25 @@ export function HeroSection({ onLaunchApp }: LandingHeroProps) {
   )
 }
 
+function Footer() {
+  return (
+    <footer className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center py-6">
+      <Link
+        href="/privacy"
+        className="text-white/40 hover:text-white/80 text-xs font-medium uppercase tracking-widest transition-colors"
+      >
+        Privacy Policy
+      </Link>
+    </footer>
+  )
+}
+
 export default function LandingHero({ onLaunchApp }: LandingHeroProps) {
   return (
-    <div className="bg-[hsl(0,0%,8%)] min-h-screen text-foreground font-sora selection:bg-[hsl(119,99%,46%)] selection:text-black">
+    <div className="relative bg-[hsl(0,0%,8%)] min-h-screen text-foreground font-sora selection:bg-[hsl(119,99%,46%)] selection:text-black">
       <Navbar onLaunchApp={onLaunchApp} />
       <HeroSection onLaunchApp={onLaunchApp} />
+      <Footer />
     </div>
   )
 }
