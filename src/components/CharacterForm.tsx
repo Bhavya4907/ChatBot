@@ -13,7 +13,7 @@ interface Props {
 }
 
 export default function CharacterForm({ session, onCreated, onCancel }: Props) {
-  const [newChar, setNewChar] = useState({ name: "", emoji: "🤖", personality: "", speakingStyle: "" })
+  const [newChar, setNewChar] = useState({ name: "", emoji: "🤖", personality: "", speakingStyle: "", is_public: false })
   const [creating, setCreating] = useState(false)
 
   async function createCharacter() {
@@ -21,10 +21,10 @@ export default function CharacterForm({ session, onCreated, onCancel }: Props) {
     setCreating(true)
     const system_prompt = `You are ${newChar.name}. ${newChar.personality}.${newChar.speakingStyle ? " Speaking style: " + newChar.speakingStyle + "." : ""} Keep replies under 100 words. Never break character.`
     const { data, error } = await supabase.from("characters")
-      .insert({ name: newChar.name, emoji: newChar.emoji, system_prompt, created_by: session.user.id })
+      .insert({ name: newChar.name, emoji: newChar.emoji, system_prompt, created_by: session.user.id, is_public: newChar.is_public })
       .select().single()
     if (!error && data) onCreated(data)
-    setNewChar({ name: "", emoji: "🤖", personality: "", speakingStyle: "" })
+    setNewChar({ name: "", emoji: "🤖", personality: "", speakingStyle: "", is_public: false })
     setCreating(false)
   }
 
@@ -233,6 +233,63 @@ export default function CharacterForm({ session, onCreated, onCancel }: Props) {
         value={newChar.speakingStyle}
         onChange={e => setNewChar({ ...newChar, speakingStyle: e.target.value })}
       />
+
+      {/* Visibility */}
+      <label style={{
+        fontSize: 11,
+        color: T.muted,
+        display: "block",
+        margin: "20px 0 6px",
+        textTransform: "uppercase",
+        letterSpacing: "0.07em",
+        fontWeight: 600,
+      }}>Visibility</label>
+      <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+        <button
+          type="button"
+          onClick={() => setNewChar({ ...newChar, is_public: false })}
+          style={{
+            flex: 1,
+            padding: "12px 14px",
+            background: !newChar.is_public ? "rgba(255,255,255,0.06)" : T.surface,
+            border: !newChar.is_public ? `1px solid ${T.primary}` : `1px solid ${T.border}`,
+            borderRadius: 10,
+            color: !newChar.is_public ? T.primary : T.muted,
+            cursor: "pointer",
+            fontWeight: 600,
+            fontFamily: T.font,
+            transition: "all 0.15s ease",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6
+          }}
+        >
+          <span>🔒</span> Private
+        </button>
+        <button
+          type="button"
+          onClick={() => setNewChar({ ...newChar, is_public: true })}
+          style={{
+            flex: 1,
+            padding: "12px 14px",
+            background: newChar.is_public ? "rgba(255,255,255,0.06)" : T.surface,
+            border: newChar.is_public ? `1px solid ${T.primary}` : `1px solid ${T.border}`,
+            borderRadius: 10,
+            color: newChar.is_public ? T.primary : T.muted,
+            cursor: "pointer",
+            fontWeight: 600,
+            fontFamily: T.font,
+            transition: "all 0.15s ease",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6
+          }}
+        >
+          <span>🌍</span> Public
+        </button>
+      </div>
 
       {/* Buttons */}
       <div style={{ display: "flex", gap: 10, marginTop: 28 }}>

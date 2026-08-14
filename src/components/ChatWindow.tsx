@@ -35,7 +35,7 @@ export default function ChatWindow({
     try {
       await supabase.from("messages").insert(userMsg)
       const history = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }))
-      const res = await fetch("https://chat-bot-k6kp.vercel.app/api/chat", {
+      const res = await fetch("https://kikkar.vercel.app/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: history, systemPrompt: activeChar.system_prompt })
       })
@@ -56,7 +56,7 @@ export default function ChatWindow({
     if (!input.trim() || !activeChar || !session) return
     setGeneratingImg(true)
     try {
-      const res = await fetch("https://chat-bot-k6kp.vercel.app/api/generate-image", {
+      const res = await fetch("https://kikkar.vercel.app/api/generate-image", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: input }),
       })
@@ -90,7 +90,7 @@ export default function ChatWindow({
     }
 
     const sampleMessages = msgs.map((m: any) => m.content).join("\n")
-    const res = await fetch("https://chat-bot-k6kp.vercel.app/api/chat", {
+    const res = await fetch("https://kikkar.vercel.app/api/chat", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         messages: [{ role: "user", content: `Analyze the writing style, personality, tone, vocabulary, and communication patterns from these messages. Write a system prompt (max 200 words) for an AI to perfectly impersonate this person.\n\nMessages:\n${sampleMessages}` }],
@@ -112,7 +112,8 @@ export default function ChatWindow({
         system_prompt,
         created_by: session.user.id,
         is_replica: true,
-        replica_of: session.user.id
+        replica_of: session.user.id,
+        is_public: false
       })
       .select().single()
 
@@ -145,7 +146,7 @@ export default function ChatWindow({
           className="cc-back-btn"
           onClick={onBack}
           style={{
-            display: "none",
+            display: "flex",
             alignItems: "center",
             justifyContent: "center",
             background: T.bgAlt,

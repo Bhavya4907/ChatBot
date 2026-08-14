@@ -117,7 +117,7 @@ export default function DMWindow({
     }
 
     const sampleMessages = msgs.map((m: any) => m.content).join("\n")
-    const res = await fetch("https://chat-bot-k6kp.vercel.app/api/chat", {
+    const res = await fetch("https://kikkar.vercel.app/api/chat", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         messages: [{ role: "user", content: `Analyze the writing style, personality, tone, vocabulary, and communication patterns from these messages. Write a system prompt (max 200 words) for an AI to perfectly impersonate this person.\n\nMessages:\n${sampleMessages}` }],
@@ -139,7 +139,8 @@ export default function DMWindow({
         system_prompt,
         created_by: session.user.id,
         is_replica: true,
-        replica_of: other.id
+        replica_of: other.id,
+        is_public: false
       })
       .select().single()
 

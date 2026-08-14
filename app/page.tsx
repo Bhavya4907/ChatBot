@@ -9,6 +9,8 @@ import DMWindow from "../src/components/DMWIndow"
 import CharacterForm from "../src/components/CharacterForm"
 import ProfileForm from "../src/components/ProfileForm"
 import ElectricBorder from "../src/components/ElectricBorder"
+import ModeSelection from "../src/components/ModeSelection"
+import AIGridView from "../src/components/AIGridView"
 import { T } from "../src/styles"
 
 export default function Home() {
@@ -28,6 +30,27 @@ export default function Home() {
   const [profile,       setProfile]       = useState<any>(null)
   const [creating,      setCreating]      = useState(false)
   const [chatOpen,      setChatOpen]      = useState(false)
+  const [initialModeSelected, setInitialModeSelected] = useState(false)
+
+  // ── Mode Persistence ─────────────────────────────────────────
+  useEffect(() => {
+    const savedMode = localStorage.getItem("kikar_mode")
+    if (savedMode === "ai" || savedMode === "people") {
+      setView(savedMode as "ai"|"people")
+      setInitialModeSelected(true)
+    }
+  }, [])
+
+  function handleSetView(m: "ai"|"people") {
+    setView(m)
+    localStorage.setItem("kikar_mode", m)
+  }
+
+  function selectMode(m: "ai"|"people") {
+    setView(m)
+    setInitialModeSelected(true)
+    localStorage.setItem("kikar_mode", m)
+  }
 
   // ── Auth ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -65,7 +88,10 @@ export default function Home() {
   useEffect(() => {
     if (!session) return
     setCharsLoading(true)
-    supabase.from("characters").select("*").order("created_at", { ascending: false })
+    supabase.from("characters")
+      .select("*")
+      .or(`is_public.eq.true,created_by.eq.${session.user.id}`)
+      .order("created_at", { ascending: false })
       .then(({ data }) => { setCharacters(data || []); setCharsLoading(false) })
   }, [session])
 
@@ -107,13 +133,40 @@ export default function Home() {
       .then(({ data }) => { if (data) setProfile(data) })
   }, [session])
 
-  // ── Online status + all profiles ─────────────────────────────
+  // ── Online presence heartbeat ────────────────────────────────
   useEffect(() => {
     if (!session) return
 
     supabase.from("profiles")
       .update({ is_online: true, last_seen: new Date().toISOString() })
       .eq("id", session.user.id).then(() => {})
+
+    const handleOffline = () => {
+      supabase.from("profiles")
+        .update({ is_online: false, last_seen: new Date().toISOString() })
+        .eq("id", session.user.id).then(() => {})
+    }
+    window.addEventListener("beforeunload", handleOffline)
+
+    const heartbeat = setInterval(() => {
+      supabase.from("profiles")
+        .update({ is_online: true, last_seen: new Date().toISOString() })
+        .eq("id", session.user.id).then(() => {})
+    }, 30000)
+
+    return () => {
+      window.removeEventListener("beforeunload", handleOffline)
+      clearInterval(heartbeat)
+      handleOffline()
+    }
+  }, [session])
+
+  // ── Load all profiles (Lazy when in "people" view) ────────────────
+  useEffect(() => {
+    if (!session || view !== "people") {
+      setAllProfiles([])
+      return
+    }
 
     supabase.from("profiles").select("*")
       .neq("id", session.user.id)
@@ -130,26 +183,10 @@ export default function Home() {
         })
       .subscribe()
 
-    const handleOffline = () => {
-      supabase.from("profiles")
-        .update({ is_online: false, last_seen: new Date().toISOString() })
-        .eq("id", session.user.id).then(() => {})
-    }
-    window.addEventListener("beforeunload", handleOffline)
-
-    const heartbeat = setInterval(() => {
-      supabase.from("profiles")
-        .update({ is_online: true, last_seen: new Date().toISOString() })
-        .eq("id", session.user.id).then(() => {})
-    }, 30000)
-
     return () => {
       supabase.removeChannel(ch)
-      window.removeEventListener("beforeunload", handleOffline)
-      clearInterval(heartbeat)
-      handleOffline()
     }
-  }, [session])
+  }, [session, view])
 
   // ── Global DM notifications ───────────────────────────────────
   useEffect(() => {
@@ -177,6 +214,7 @@ export default function Home() {
     setShowProfile(false); setChatOpen(true)
   }
   function openConvo(c: any) {
+    handleSetView("people")
     setActiveConvo(c); setActiveChar(null); setShowForm(false)
     setShowProfile(false); setChatOpen(true)
   }
@@ -184,7 +222,11 @@ export default function Home() {
     setShowForm(true); setActiveChar(null); setActiveConvo(null)
     setShowProfile(false); setChatOpen(true)
   }
-  function goBack() { setChatOpen(false) }
+  function goBack() { 
+    setChatOpen(false)
+    setActiveChar(null)
+    setActiveConvo(null)
+  }
 
   // ── Actions ───────────────────────────────────────────────────
   async function searchUser() {
@@ -236,13 +278,22 @@ export default function Home() {
   if (!session) return <AuthScreen />
 
   // ── Main app ──────────────────────────────────────────────────
+  if (!initialModeSelected) {
+    return (
+      <div style={{ display: "flex", minHeight: "100dvh" }}>
+        <ModeSelection onSelect={selectMode} />
+      </div>
+    )
+  }
+
   return (
     <div className={`cc-app${chatOpen ? " chat-open" : ""}`}>
 
-      <Sidebar
-        session={session}
+      {view !== "ai" && (
+        <Sidebar
+          session={session}
         view={view}
-        setView={setView}
+        setView={handleSetView}
         characters={characters}
         charsLoading={charsLoading}
         activeChar={activeChar}
@@ -262,6 +313,7 @@ export default function Home() {
         onDeleteCharacter={deleteCharacter}
         onSignOut={() => supabase.auth.signOut()}
       />
+      )}
 
       <main className="cc-main">
         {view === "people" && activeConvo ? (
@@ -353,73 +405,17 @@ export default function Home() {
           />
 
         ) : !activeChar ? (
-          /* ── AI empty state ─────────────────────────────────── */
-          <div style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 32,
-            background: T.bgAlt,
-            fontFamily: T.font,
-          }}>
-            <ElectricBorder
-              color="hsl(119, 99%, 46%)"
-              speed={1.2}
-              chaos={0.14}
-              borderRadius={20}
-              style={{
-                background: "rgba(22, 22, 22, 0.9)",
-                backdropFilter: "blur(16px)",
-                padding: "40px 36px",
-                maxWidth: 380,
-                textAlign: "center",
-              }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-                <div style={{
-                  width: 72,
-                  height: 72,
-                  borderRadius: 20,
-                  background: "hsla(119,99%,46%,0.12)",
-                  border: "1px solid hsla(119,99%,46%,0.3)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 32,
-                  boxShadow: "0 0 32px hsla(119,99%,46%,0.2)",
-                }}>✦</div>
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 6, letterSpacing: "-0.02em" }}>
-                    SENTINEL / Kikar <span style={{ color: T.primary }}>AI</span>
-                  </div>
-                  <p style={{ color: T.muted, fontSize: 13, textAlign: "center", lineHeight: 1.7, margin: 0 }}>
-                    Select an AI persona from the sidebar or create your own custom character.
-                  </p>
-                </div>
-                <button
-                  onClick={openForm}
-                  style={{
-                    marginTop: 8,
-                    padding: "12px 28px",
-                    background: "linear-gradient(135deg, hsl(119,99%,46%) 0%, hsl(119,99%,38%) 100%)",
-                    border: "none",
-                    borderRadius: 999,
-                    fontWeight: 700,
-                    fontSize: 13,
-                    cursor: "pointer",
-                    color: T.primaryFg,
-                    fontFamily: T.font,
-                    letterSpacing: "0.01em",
-                    boxShadow: "0 4px 20px hsla(119,99%,46%,0.25)",
-                    transition: "opacity 0.15s, transform 0.12s",
-                  }}
-                >+ Create Character</button>
-              </div>
-            </ElectricBorder>
-          </div>
-
+          /* ── AI Grid View ─────────────────────────────────── */
+          <AIGridView
+            characters={characters}
+            charsLoading={charsLoading}
+            session={session}
+            onOpenChar={openChar}
+            onOpenForm={openForm}
+            setView={handleSetView}
+            onOpenProfile={() => { setShowProfile(true); setChatOpen(true) }}
+            onSignOut={() => supabase.auth.signOut()}
+          />
         ) : (
           <ChatWindow
             session={session}
