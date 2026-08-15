@@ -2,6 +2,7 @@
 import { useState } from "react"
 import { supabase } from "../lib/supabase"
 import ElectricBorder from "./ElectricBorder"
+import GlareHover from "./GlareHover"
 import LandingHero from "./LandingHero"
 
 export default function AuthScreen() {
@@ -44,27 +45,45 @@ export default function AuthScreen() {
         <span>← Back</span>
       </button>
 
-      {/* Electric Border Wrapped Auth Card */}
-      <ElectricBorder
-        color="hsl(119, 99%, 46%)"
-        speed={1.4}
-        chaos={0.14}
-        borderRadius={20}
+      {/* GlareHover & Electric Border Wrapped Auth Card */}
+      <GlareHover
+        width="100%"
+        height="auto"
+        background="rgba(20, 20, 20, 0.95)"
+        borderRadius="20px"
+        borderColor="rgba(255, 255, 255, 0.08)"
+        glareColor="#ffffff"
+        glareOpacity={0.25}
+        glareAngle={-30}
+        glareSize={300}
+        transitionDuration={800}
+        playOnce={false}
         style={{
-          width: "100%",
           maxWidth: 380,
-          background: "rgba(20, 20, 20, 0.95)",
           backdropFilter: "blur(24px)",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.8)"
+          boxShadow: "0 24px 80px rgba(0,0,0,0.8)",
+          display: "block",
         }}
       >
-        <div style={{
-          padding: "36px 28px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 14,
-        }}>
+        <ElectricBorder
+          color="hsl(119, 99%, 46%)"
+          speed={1.4}
+          chaos={0.14}
+          borderRadius={20}
+          style={{
+            width: "100%",
+            background: "transparent",
+            border: "none",
+          }}
+        >
+          <div style={{
+            padding: "36px 28px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 14,
+            position: "relative",
+            zIndex: 2,
+          }}>
 
           {/* Logo */}
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginBottom: 6 }}>
@@ -265,7 +284,8 @@ export default function AuthScreen() {
           </button>
 
         </div>
-      </ElectricBorder>
+        </ElectricBorder>
+      </GlareHover>
     </div>
   )
 }

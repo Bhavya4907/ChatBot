@@ -1,32 +1,93 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { supabase } from "../lib/supabase"
 import { T } from "../styles"
 import ElectricBorder from "./ElectricBorder"
 
-const EMOJIS = ["🤖", "🧙", "🦊", "🐉", "👾", "🧠", "🕵️", "🧜", "🦁", "🎭", "👻", "🤡", "🧛", "🦸", "🧝"]
+const EMOJIS = ["🤖", "🧙", "🦊", "🐉", "👾", "🧠", "🕵️", "🧜", "🦁", "🎭", "👻", "🤡", "🧛", "🦸", "🧝", "🐱", "🐶", "🚀", "⚡", "🔮"]
 
 interface Props {
   session: any
+  initialChar?: any
   onCreated: (char: any) => void
+  onUpdated?: (char: any) => void
   onCancel: () => void
 }
 
-export default function CharacterForm({ session, onCreated, onCancel }: Props) {
-  const [newChar, setNewChar] = useState({ name: "", emoji: "🤖", personality: "", speakingStyle: "", is_public: false })
-  const [creating, setCreating] = useState(false)
+export default function CharacterForm({ session, initialChar, onCreated, onUpdated, onCancel }: Props) {
+  const [newChar, setNewChar] = useState({
+    name: initialChar?.name || "",
+    emoji: initialChar?.emoji || "🤖",
+    personality: "",
+    speakingStyle: "",
+    is_public: initialChar?.is_public ?? false
+  })
+  const [saving, setSaving] = useState(false)
 
-  async function createCharacter() {
+  // Extract personality and speaking style from existing system_prompt if editing
+  useEffect(() => {
+    if (initialChar) {
+      let prompt = initialChar.system_prompt || ""
+      // Remove prefix "You are <name>. "
+      prompt = prompt.replace(new RegExp(`^You are ${initialChar.name}\\.\\s*`, 'i'), "")
+      // Extract Speaking style if present
+      const styleMatch = prompt.match(/Speaking style:\s*(.*?)\.\s*Keep replies/i)
+      const speakingStyle = styleMatch ? styleMatch[1] : ""
+      // Remove speaking style and suffix
+      let personality = prompt
+        .replace(/Speaking style:\s*.*?\.\s*/i, "")
+        .replace(/Keep replies under \d+ words\.\s*/i, "")
+        .replace(/Never break character\.\s*/i, "")
+        .trim()
+
+      setNewChar({
+        name: initialChar.name || "",
+        emoji: initialChar.emoji || "🤖",
+        personality: personality || prompt,
+        speakingStyle: speakingStyle,
+        is_public: !!initialChar.is_public
+      })
+    }
+  }, [initialChar])
+
+  async function handleSave() {
     if (!newChar.name.trim() || !newChar.personality.trim() || !session) return
-    setCreating(true)
+    setSaving(true)
     const system_prompt = `You are ${newChar.name}. ${newChar.personality}.${newChar.speakingStyle ? " Speaking style: " + newChar.speakingStyle + "." : ""} Keep replies under 100 words. Never break character.`
-    const { data, error } = await supabase.from("characters")
-      .insert({ name: newChar.name, emoji: newChar.emoji, system_prompt, created_by: session.user.id, is_public: newChar.is_public })
-      .select().single()
-    if (!error && data) onCreated(data)
-    setNewChar({ name: "", emoji: "🤖", personality: "", speakingStyle: "", is_public: false })
-    setCreating(false)
+    
+    if (initialChar) {
+      const { data, error } = await supabase.from("characters")
+        .update({
+          name: newChar.name,
+          emoji: newChar.emoji,
+          system_prompt,
+          is_public: newChar.is_public
+        })
+        .eq("id", initialChar.id)
+        .select()
+        .single()
+      
+      if (!error && data && onUpdated) {
+        onUpdated(data)
+      }
+    } else {
+      const { data, error } = await supabase.from("characters")
+        .insert({
+          name: newChar.name,
+          emoji: newChar.emoji,
+          system_prompt,
+          created_by: session.user.id,
+          is_public: newChar.is_public
+        })
+        .select()
+        .single()
+      if (!error && data) onCreated(data)
+    }
+
+    setSaving(false)
   }
+
+  const isEditing = !!initialChar
 
   return (
     <div style={{
@@ -42,7 +103,7 @@ export default function CharacterForm({ session, onCreated, onCancel }: Props) {
           className="cc-back-btn"
           onClick={onCancel}
           style={{
-            display: "none",
+            display: "flex",
             alignItems: "center",
             justifyContent: "center",
             background: T.surface,
@@ -64,9 +125,9 @@ export default function CharacterForm({ session, onCreated, onCancel }: Props) {
             fontWeight: 700,
             color: T.text,
             letterSpacing: "-0.03em",
-          }}>Create a Character</h2>
+          }}>{isEditing ? "Edit Character" : "Create a Character"}</h2>
           <p style={{ margin: "4px 0 0", fontSize: 12, color: T.muted }}>
-            Design an AI persona to chat with
+            {isEditing ? "Customize your AI persona's traits and behavior" : "Design a custom AI persona to chat with"}
           </p>
         </div>
       </div>
@@ -154,6 +215,7 @@ export default function CharacterForm({ session, onCreated, onCancel }: Props) {
           const isSelected = newChar.emoji === em
           return (
             <button key={em}
+              type="button"
               onClick={() => setNewChar({ ...newChar, emoji: em })}
               style={{
                 fontSize: 22,
@@ -294,6 +356,7 @@ export default function CharacterForm({ session, onCreated, onCancel }: Props) {
       {/* Buttons */}
       <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
         <button
+          type="button"
           onClick={onCancel}
           style={{
             flex: 1,
@@ -311,29 +374,30 @@ export default function CharacterForm({ session, onCreated, onCancel }: Props) {
         >Cancel</button>
 
         <button
-          onClick={createCharacter}
-          disabled={creating || !newChar.name.trim() || !newChar.personality.trim()}
+          type="button"
+          onClick={handleSave}
+          disabled={saving || !newChar.name.trim() || !newChar.personality.trim()}
           style={{
             flex: 2,
             padding: "13px 0",
-            background: creating || !newChar.name.trim() || !newChar.personality.trim()
+            background: saving || !newChar.name.trim() || !newChar.personality.trim()
               ? T.surface
               : "linear-gradient(135deg, hsl(119,99%,46%) 0%, hsl(119,99%,38%) 100%)",
-            border: `1px solid ${creating || !newChar.name.trim() || !newChar.personality.trim() ? T.border : "transparent"}`,
+            border: `1px solid ${saving || !newChar.name.trim() || !newChar.personality.trim() ? T.border : "transparent"}`,
             borderRadius: 10,
             fontWeight: 700,
             fontSize: 14,
             fontFamily: T.font,
-            cursor: creating || !newChar.name.trim() || !newChar.personality.trim() ? "not-allowed" : "pointer",
-            color: creating || !newChar.name.trim() || !newChar.personality.trim() ? T.muted : T.primaryFg,
+            cursor: saving || !newChar.name.trim() || !newChar.personality.trim() ? "not-allowed" : "pointer",
+            color: saving || !newChar.name.trim() || !newChar.personality.trim() ? T.muted : T.primaryFg,
             letterSpacing: "0.01em",
-            boxShadow: creating || !newChar.name.trim() || !newChar.personality.trim()
+            boxShadow: saving || !newChar.name.trim() || !newChar.personality.trim()
               ? "none"
               : "0 4px 20px hsla(119,99%,46%,0.25)",
             transition: "all 0.18s",
           }}
         >
-          {creating ? "⏳ Creating…" : "✦ Create & Chat"}
+          {saving ? "⏳ Saving…" : isEditing ? "✓ Save Changes" : "✦ Create & Chat"}
         </button>
       </div>
     </div>

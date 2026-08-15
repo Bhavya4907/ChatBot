@@ -20,6 +20,8 @@ export default function DMWindow({
   const [input, setInput] = useState("")
   const [directMessages, setDirectMessages] = useState<any[]>([])
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -48,13 +50,20 @@ export default function DMWindow({
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "direct_messages" },
         (p) => {
           if (p.new.conversation_id === activeConvo.id) {
-            setDirectMessages(prev => [...prev, p.new])
+            setDirectMessages(prev => {
+              if (prev.some(m => m.id === p.new.id)) return prev
+              return [...prev, p.new]
+            })
             if (p.new.sender_id !== session.user.id) {
               const name = otherProfile?.display_name || otherProfile?.username || "Someone"
               const isImage = p.new.content?.startsWith("[image]:")
               showNotification(name, isImage ? "📷 Sent an image" : p.new.content)
             }
           }
+        })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "direct_messages" },
+        (p) => {
+          setDirectMessages(prev => prev.filter(m => m.id !== p.old.id))
         })
       .subscribe()
 
@@ -67,11 +76,12 @@ export default function DMWindow({
 
   async function sendDirectMessage() {
     if (!input.trim() || !activeConvo || !session) return
+    const msgContent = input.trim()
     setInput("")
     await supabase.from("direct_messages").insert({
       conversation_id: activeConvo.id,
       sender_id: session.user.id,
-      content: input
+      content: msgContent
     })
   }
 
@@ -99,6 +109,28 @@ export default function DMWindow({
     }
   }
 
+  async function handleDeleteMessage(id: string) {
+    if (!id) return
+    await supabase.from("direct_messages").delete().eq("id", id)
+    setDirectMessages(prev => prev.filter(m => m.id !== id))
+  }
+
+  async function handleClearHistory() {
+    if (directMessages.length === 0) return
+    if (window.confirm("Clear all messages in this direct conversation?")) {
+      await supabase.from("direct_messages").delete().eq("conversation_id", activeConvo.id)
+      setDirectMessages([])
+    }
+  }
+
+  function handleCopy(content: string, id: string) {
+    const text = content.startsWith("[image]:") ? content.replace("[image]:", "") : content
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 2000)
+    })
+  }
+
   async function createReplica() {
     if (!session || !other) return
     setCreating(true)
@@ -117,8 +149,9 @@ export default function DMWindow({
     }
 
     const sampleMessages = msgs.map((m: any) => m.content).join("\n")
-    const res = await fetch("https://kikkar.vercel.app/api/chat", {
-      method: "POST", headers: { "Content-Type": "application/json" },
+    const res = await fetch("/api/chat", {
+      method: "POST", 
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         messages: [{ role: "user", content: `Analyze the writing style, personality, tone, vocabulary, and communication patterns from these messages. Write a system prompt (max 200 words) for an AI to perfectly impersonate this person.\n\nMessages:\n${sampleMessages}` }],
         systemPrompt: "You are an expert at analyzing writing styles. Return only the system prompt text, nothing else."
@@ -171,7 +204,7 @@ export default function DMWindow({
           className="cc-back-btn"
           onClick={onBack}
           style={{
-            display: "none",
+            display: "flex",
             alignItems: "center",
             justifyContent: "center",
             background: T.bgAlt,
@@ -208,49 +241,89 @@ export default function DMWindow({
           }} />
         </div>
 
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: T.text, letterSpacing: "-0.02em" }}>
-            {other?.display_name || other?.username}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: T.text, letterSpacing: "-0.02em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {other?.display_name || other?.username || "Direct Chat"}
           </div>
           <div style={{ fontSize: 11, color: otherProfile?.is_online ? "#22c55e" : T.muted, marginTop: 2 }}>
             {otherProfile?.is_online ? "● Online" : "● Offline"}
           </div>
         </div>
 
-        {/* Replica button */}
-        <button
-          disabled={creating}
-          onClick={createReplica}
-          style={{
-            background: "transparent",
-            border: "1px solid rgba(168,85,247,0.4)",
-            borderRadius: 8,
-            color: "#a855f7",
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: creating ? "not-allowed" : "pointer",
-            padding: "7px 12px",
-            flexShrink: 0,
-            opacity: creating ? 0.5 : 1,
-            fontFamily: T.font,
-            transition: "background 0.15s, border-color 0.15s",
-            letterSpacing: "0.01em",
-          }}
-          onMouseEnter={e => {
-            if (!creating) {
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* Clear history button */}
+          {directMessages.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearHistory}
+              title="Clear message history"
+              style={{
+                background: "rgba(255,255,255,0.05)",
+                border: `1px solid ${T.border}`,
+                borderRadius: 8,
+                color: T.muted,
+                fontSize: 12,
+                cursor: "pointer",
+                padding: "7px 10px",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                fontFamily: T.font,
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={e => {
+                const el = e.currentTarget
+                el.style.background = "rgba(248,113,113,0.15)"
+                el.style.borderColor = "rgba(248,113,113,0.3)"
+                el.style.color = T.red
+              }}
+              onMouseLeave={e => {
+                const el = e.currentTarget
+                el.style.background = "rgba(255,255,255,0.05)"
+                el.style.borderColor = T.border
+                el.style.color = T.muted
+              }}
+            >
+              <span>🧹</span>
+            </button>
+          )}
+
+          {/* Replica button */}
+          <button
+            disabled={creating}
+            onClick={createReplica}
+            title="Create a replica bot based on this person's chat style"
+            style={{
+              background: "transparent",
+              border: "1px solid rgba(168,85,247,0.4)",
+              borderRadius: 8,
+              color: "#a855f7",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: creating ? "not-allowed" : "pointer",
+              padding: "7px 12px",
+              flexShrink: 0,
+              opacity: creating ? 0.5 : 1,
+              fontFamily: T.font,
+              transition: "background 0.15s, border-color 0.15s",
+              letterSpacing: "0.01em",
+            }}
+            onMouseEnter={e => {
+              if (!creating) {
+                const el = e.currentTarget
+                el.style.background = "rgba(168,85,247,0.12)"
+                el.style.borderColor = "rgba(168,85,247,0.6)"
+              }
+            }}
+            onMouseLeave={e => {
               const el = e.currentTarget
-              el.style.background = "rgba(168,85,247,0.12)"
-              el.style.borderColor = "rgba(168,85,247,0.6)"
-            }
-          }}
-          onMouseLeave={e => {
-            const el = e.currentTarget
-            el.style.background = "transparent"
-            el.style.borderColor = "rgba(168,85,247,0.4)"
-          }}
-        >
-          {creating ? "⏳ Creating…" : "🪞 Replica"}
-        </button>
+              el.style.background = "transparent"
+              el.style.borderColor = "rgba(168,85,247,0.4)"
+            }}
+          >
+            {creating ? "⏳ Creating…" : "🪞 Replica"}
+          </button>
+        </div>
       </div>
 
       {/* ── Messages ───────────────────────────────────────────── */}
@@ -262,16 +335,43 @@ export default function DMWindow({
           display: "flex",
           flexDirection: "column",
           gap: 6,
+          padding: 16,
           background: T.bgAlt,
         }}
       >
+        {directMessages.length === 0 && (
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            flex: 1,
+            gap: 12,
+            color: T.muted,
+            fontSize: 13,
+            textAlign: "center",
+            padding: 32,
+          }}>
+            <div style={{ fontSize: 36 }}>💬</div>
+            <div style={{ fontWeight: 600, color: T.text, fontSize: 15 }}>
+              Start a conversation with {other?.display_name || other?.username}
+            </div>
+            <p style={{ margin: 0, maxWidth: 300, lineHeight: 1.6 }}>
+              Send a direct message below. Once you exchange 5+ messages, you can generate an AI persona replica!
+            </p>
+          </div>
+        )}
+
         {directMessages.map((m: any, i: number) => {
           const isUser = m.sender_id === session.user.id
           const isImage = m.content?.startsWith("[image]:")
           const imageUrl = isImage ? m.content.replace("[image]:", "") : null
           const showDate = i === 0 || formatDate(m.created_at) !== formatDate(directMessages[i - 1].created_at)
+          const msgId = m.id ?? `dm-${i}`
+          const isHovered = hoveredMsgId === msgId
+
           return (
-            <div key={i}>
+            <div key={msgId}>
               {/* Date separator */}
               {showDate && (
                 <div style={{
@@ -296,50 +396,120 @@ export default function DMWindow({
                 </div>
               )}
 
-              <div style={{ display: "flex", flexDirection: "column", alignItems: isUser ? "flex-end" : "flex-start" }}>
-                <div
-                  className="cc-bubble"
-                  style={{
-                    padding: isImage ? 4 : "10px 14px",
-                    borderRadius: 14,
-                    lineHeight: 1.55,
-                    fontSize: 14,
-                    wordBreak: "break-word",
-                    borderBottomRightRadius: isUser ? 4 : 14,
-                    borderBottomLeftRadius: isUser ? 14 : 4,
-                    background: isImage
-                      ? "transparent"
-                      : isUser
-                      ? "linear-gradient(135deg, hsl(119,99%,46%) 0%, hsl(119,99%,38%) 100%)"
-                      : T.surface,
-                    color: isUser ? T.primaryFg : T.text,
-                    border: isUser || isImage ? "none" : `1px solid ${T.border}`,
-                    boxShadow: isUser ? "0 2px 12px hsla(119,99%,46%,0.2)" : "none",
-                    fontWeight: isUser ? 500 : 400,
-                    animation: "fade-in 0.2s ease both",
-                    maxWidth: "65%",
-                  }}
-                >
-                  {isImage
-                    ? <img src={imageUrl!}
-                        style={{ maxWidth: 220, maxHeight: 280, borderRadius: 10, display: "block", cursor: "pointer" }}
-                        onClick={() => window.open(imageUrl!, '_blank')} />
-                    : m.content}
+              <div 
+                onMouseEnter={() => setHoveredMsgId(msgId)}
+                onMouseLeave={() => setHoveredMsgId(null)}
+                style={{ 
+                  display: "flex", 
+                  flexDirection: isUser ? "row-reverse" : "row",
+                  alignItems: "flex-end",
+                  gap: 8,
+                  marginBottom: 4,
+                }}
+              >
+                <div style={{ 
+                  display: "flex", 
+                  flexDirection: "column", 
+                  alignItems: isUser ? "flex-end" : "flex-start",
+                  maxWidth: "70%",
+                }}>
+                  <div
+                    className="cc-bubble"
+                    style={{
+                      padding: isImage ? 4 : "10px 14px",
+                      borderRadius: 14,
+                      lineHeight: 1.55,
+                      fontSize: 14,
+                      wordBreak: "break-word",
+                      borderBottomRightRadius: isUser ? 4 : 14,
+                      borderBottomLeftRadius: isUser ? 14 : 4,
+                      background: isImage
+                        ? "transparent"
+                        : isUser
+                        ? "linear-gradient(135deg, hsl(119,99%,46%) 0%, hsl(119,99%,38%) 100%)"
+                        : T.surface,
+                      color: isUser ? T.primaryFg : T.text,
+                      border: isUser || isImage ? "none" : `1px solid ${T.border}`,
+                      boxShadow: isUser ? "0 2px 12px hsla(119,99%,46%,0.2)" : "none",
+                      fontWeight: isUser ? 500 : 400,
+                      animation: "fade-in 0.2s ease both",
+                    }}
+                  >
+                    {isImage
+                      ? <img src={imageUrl!}
+                          alt="Attachment"
+                          style={{ maxWidth: 240, maxHeight: 280, borderRadius: 10, display: "block", cursor: "pointer" }}
+                          onClick={() => window.open(imageUrl!, '_blank')} />
+                      : m.content}
+                  </div>
+
+                  {/* Timestamp + read receipt */}
+                  <div style={{ display: "flex", gap: 4, alignItems: "center", marginTop: 3, padding: "0 2px" }}>
+                    <span style={{ fontSize: 10, color: T.muted2 }}>
+                      {m.created_at ? formatTime(m.created_at) : ""}
+                    </span>
+                    {isUser && (
+                      <span style={{
+                        fontSize: 10,
+                        color: m.read_at ? T.primary : T.muted2,
+                        fontWeight: 600,
+                      }}>
+                        {m.read_at ? "✓✓" : "✓"}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                {/* Timestamp + read receipt */}
-                <div style={{ display: "flex", gap: 4, alignItems: "center", marginTop: 3, padding: "0 2px" }}>
-                  <span style={{ fontSize: 10, color: T.muted2 }}>
-                    {m.created_at ? formatTime(m.created_at) : ""}
-                  </span>
+                {/* Message Hover Actions */}
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  opacity: isHovered ? 1 : 0,
+                  transition: "opacity 0.15s ease",
+                  marginBottom: 16,
+                  pointerEvents: isHovered ? "auto" : "none",
+                }}>
+                  <button
+                    type="button"
+                    title="Copy message"
+                    onClick={() => handleCopy(m.content, msgId)}
+                    style={{
+                      background: "rgba(255,255,255,0.06)",
+                      border: `1px solid ${T.border}`,
+                      borderRadius: 6,
+                      color: copiedId === msgId ? T.primary : T.muted,
+                      fontSize: 11,
+                      cursor: "pointer",
+                      padding: "3px 6px",
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    {copiedId === msgId ? "✓" : "📋"}
+                  </button>
+
                   {isUser && (
-                    <span style={{
-                      fontSize: 10,
-                      color: m.read_at ? T.primary : T.muted2,
-                      fontWeight: 600,
-                    }}>
-                      {m.read_at ? "✓✓" : "✓"}
-                    </span>
+                    <button
+                      type="button"
+                      title="Delete message"
+                      onClick={() => handleDeleteMessage(m.id)}
+                      style={{
+                        background: "rgba(255,255,255,0.06)",
+                        border: `1px solid ${T.border}`,
+                        borderRadius: 6,
+                        color: T.muted2,
+                        fontSize: 11,
+                        cursor: "pointer",
+                        padding: "3px 6px",
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = T.red}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = T.muted2}
+                    >
+                      🗑️
+                    </button>
                   )}
                 </div>
               </div>

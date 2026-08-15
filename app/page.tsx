@@ -26,6 +26,7 @@ export default function Home() {
   const [searchResult,  setSearchResult]  = useState<any>(null)
   const [view,          setView]          = useState<"ai"|"people">("ai")
   const [showForm,      setShowForm]      = useState(false)
+  const [editingChar,   setEditingChar]   = useState<any>(null)
   const [showProfile,   setShowProfile]   = useState(false)
   const [profile,       setProfile]       = useState<any>(null)
   const [creating,      setCreating]      = useState(false)
@@ -210,22 +211,28 @@ export default function Home() {
 
   // ── Navigation ────────────────────────────────────────────────
   function openChar(c: any) {
-    setActiveChar(c); setShowForm(false); setActiveConvo(null)
+    setActiveChar(c); setShowForm(false); setEditingChar(null); setActiveConvo(null)
     setShowProfile(false); setChatOpen(true)
   }
   function openConvo(c: any) {
     handleSetView("people")
-    setActiveConvo(c); setActiveChar(null); setShowForm(false)
+    setActiveConvo(c); setActiveChar(null); setShowForm(false); setEditingChar(null)
     setShowProfile(false); setChatOpen(true)
   }
   function openForm() {
-    setShowForm(true); setActiveChar(null); setActiveConvo(null)
+    setEditingChar(null); setShowForm(true); setActiveChar(null); setActiveConvo(null)
+    setShowProfile(false); setChatOpen(true)
+  }
+  function openEditForm(char: any) {
+    setEditingChar(char); setShowForm(true); setActiveChar(null); setActiveConvo(null)
     setShowProfile(false); setChatOpen(true)
   }
   function goBack() { 
     setChatOpen(false)
     setActiveChar(null)
     setActiveConvo(null)
+    setShowForm(false)
+    setEditingChar(null)
   }
 
   // ── Actions ───────────────────────────────────────────────────
@@ -396,12 +403,21 @@ export default function Home() {
         ) : showForm ? (
           <CharacterForm
             session={session}
+            initialChar={editingChar}
             onCreated={(char) => {
               setCharacters(prev => [char, ...prev])
+              setEditingChar(null)
+              setShowForm(false)
               openChar(char)
               setMessages([])
             }}
-            onCancel={() => { setShowForm(false); goBack() }}
+            onUpdated={(updated) => {
+              setCharacters(prev => prev.map(c => c.id === updated.id ? updated : c))
+              setEditingChar(null)
+              setShowForm(false)
+              openChar(updated)
+            }}
+            onCancel={() => { setShowForm(false); setEditingChar(null); goBack() }}
           />
 
         ) : !activeChar ? (
@@ -412,6 +428,8 @@ export default function Home() {
             session={session}
             onOpenChar={openChar}
             onOpenForm={openForm}
+            onEditChar={openEditForm}
+            onDeleteCharacter={deleteCharacter}
             setView={handleSetView}
             onOpenProfile={() => { setShowProfile(true); setChatOpen(true) }}
             onSignOut={() => supabase.auth.signOut()}
@@ -425,6 +443,8 @@ export default function Home() {
             onBack={goBack}
             creating={creating}
             setCreating={setCreating}
+            onDeleteCharacter={deleteCharacter}
+            onEditChar={openEditForm}
           />
         )}
       </main>

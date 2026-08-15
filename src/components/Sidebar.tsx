@@ -294,7 +294,12 @@ export default function Sidebar({
                         }}
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = T.red}
                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = T.muted2}
-                        onClick={e => { e.stopPropagation(); onDeleteCharacter(c.id) }}
+                        onClick={e => { 
+                          e.stopPropagation()
+                          if (window.confirm(`Delete "${c.name}"?`)) {
+                            onDeleteCharacter(c.id)
+                          }
+                        }}
                       >✕</button>
                     )}
                   </div>
