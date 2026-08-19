@@ -25,15 +25,50 @@ export default function DMWindow({
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const PAGE_SIZE = 50
+
   const other = activeConvo?.user1_id === session?.user?.id ? activeConvo?.user2 : activeConvo?.user1
   const otherProfile = allProfiles.find((p: any) => p.id === other?.id) || other
 
+  async function loadMessages(p: number) {
+    if (!activeConvo) return
+    setLoadingMore(true)
+    const { data } = await supabase.from("direct_messages").select("*")
+      .eq("conversation_id", activeConvo.id)
+      .order("created_at", { ascending: false })
+      .range((p - 1) * PAGE_SIZE, p * PAGE_SIZE - 1)
+
+    if (data) {
+      if (data.length < PAGE_SIZE) setHasMore(false)
+      else setHasMore(true)
+      const newMsgs = data.reverse()
+      if (p === 1) {
+        setDirectMessages(newMsgs)
+        setTimeout(() => bottomRef.current?.scrollIntoView(), 100)
+      } else {
+        // Keep scroll position by preventing auto-scroll
+        const oldScrollHeight = document.querySelector('.cc-messages')?.scrollHeight || 0
+        setDirectMessages(prev => {
+          const unique = newMsgs.filter(n => !prev.some(p => p.id === n.id))
+          return [...unique, ...prev]
+        })
+        setTimeout(() => {
+          const el = document.querySelector('.cc-messages')
+          if (el) el.scrollTop = el.scrollHeight - oldScrollHeight
+        }, 0)
+      }
+    }
+    setLoadingMore(false)
+  }
+
   useEffect(() => {
     if (!activeConvo) return
-    supabase.from("direct_messages").select("*")
-      .eq("conversation_id", activeConvo.id)
-      .order("created_at", { ascending: true })
-      .then(({ data }) => setDirectMessages(data || []))
+    setPage(1)
+    setHasMore(true)
+    loadMessages(1)
 
     // Mark messages as read
     supabase.from("direct_messages")
@@ -50,6 +85,7 @@ export default function DMWindow({
           if (p.new.conversation_id === activeConvo.id) {
             setDirectMessages(prev => {
               if (prev.some(m => m.id === p.new.id)) return prev
+              setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100)
               return [...prev, p.new]
             })
             if (p.new.sender_id !== session.user.id) {
@@ -68,10 +104,6 @@ export default function DMWindow({
     return () => { supabase.removeChannel(ch) }
   }, [activeConvo])
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [directMessages])
-
   async function sendDirectMessage() {
     if (!input.trim() || !activeConvo || !session) return
     const msgContent = input.trim()
@@ -88,6 +120,7 @@ export default function DMWindow({
       read_at: null,
     }
     setDirectMessages(prev => [...prev, tempMsg])
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100)
 
     const { data, error } = await supabase.from("direct_messages").insert({
       conversation_id: activeConvo.id,
@@ -361,7 +394,30 @@ export default function DMWindow({
           background: T.bgAlt,
         }}
       >
-        {directMessages.length === 0 && (
+        {hasMore && directMessages.length > 0 && (
+          <button 
+            onClick={() => {
+              setPage(p => p + 1)
+              loadMessages(page + 1)
+            }}
+            disabled={loadingMore}
+            style={{
+              alignSelf: "center",
+              padding: "6px 14px",
+              background: T.surface,
+              border: `1px solid ${T.border}`,
+              borderRadius: 999,
+              color: T.primary,
+              fontSize: 12,
+              cursor: "pointer",
+              marginBottom: 16,
+            }}
+          >
+            {loadingMore ? "Loading..." : "Load previous messages"}
+          </button>
+        )}
+
+        {directMessages.length === 0 && !loadingMore && (
           <div style={{
             display: "flex",
             flexDirection: "column",

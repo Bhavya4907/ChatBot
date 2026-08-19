@@ -1,9 +1,7 @@
 "use client"
 import { useState } from "react"
 import { supabase } from "../lib/supabase"
-import ElectricBorder from "./ElectricBorder"
-import GlareHover from "./GlareHover"
-import LandingHero from "./LandingHero"
+import Link from "next/link"
 
 export default function AuthScreen() {
   const [authMode, setAuthMode] = useState<"login" | "signup">("login")
@@ -11,9 +9,9 @@ export default function AuthScreen() {
   const [password, setPassword] = useState("")
   const [authError, setAuthError] = useState("")
   const [authLoading, setAuthLoading] = useState(false)
-  const [showLanding, setShowLanding] = useState(true)
 
-  async function handleAuth() {
+  async function handleAuth(e: React.FormEvent) {
+    e.preventDefault()
     setAuthError(""); setAuthLoading(true)
     const { error } = await (authMode === "login"
       ? supabase.auth.signInWithPassword({ email, password })
@@ -22,270 +20,218 @@ export default function AuthScreen() {
     setAuthLoading(false)
   }
 
-  if (showLanding) {
-    return <LandingHero onLaunchApp={() => setShowLanding(false)} />
-  }
-
   return (
-    <div style={{
-      minHeight: "100dvh",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      background: "radial-gradient(ellipse at 50% 0%, hsla(119,99%,46%,0.1) 0%, #0d0d0d 70%)",
-      padding: 20,
-      fontFamily: "'Sora', -apple-system, sans-serif",
-      position: "relative"
-    }}>
-      {/* Top Left Navigation Back to Landing Hero */}
-      <button
-        onClick={() => setShowLanding(true)}
-        className="absolute top-6 left-6 z-20 text-white/60 hover:text-white text-xs font-medium uppercase tracking-widest flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/10 transition-colors"
-      >
-        <span>← Back</span>
-      </button>
-
-      {/* GlareHover & Electric Border Wrapped Auth Card */}
-      <GlareHover
-        width="100%"
-        height="auto"
-        background="rgba(20, 20, 20, 0.95)"
-        borderRadius="20px"
-        borderColor="rgba(255, 255, 255, 0.08)"
-        glareColor="#ffffff"
-        glareOpacity={0.25}
-        glareAngle={-30}
-        glareSize={300}
-        transitionDuration={800}
-        playOnce={false}
+    <main style={{ minHeight: "100svh", position: "relative", overflowX: "hidden", background: "#000", margin: 0, padding: 0 }}>
+      <style>{`
+        @font-face {
+          font-family: "Geist Mono:SemiBold";
+          font-style: normal;
+          font-weight: 600;
+          font-display: swap;
+          src: url("https://static.figma.com/font/GeistMono_wght__1") format("woff2");
+        }
+        .geist-mono {
+          font-family: "Geist Mono:SemiBold", monospace;
+        }
+        .text-gradient {
+          background-image: linear-gradient(247.3282658084845deg, rgb(255, 255, 255) 2.5334%, rgba(255, 255, 255, 0.4) 93.612%);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+        }
+        .kikar-heading {
+          font-size: 210px;
+          line-height: 1.1;
+          letter-spacing: -16px;
+        }
+        .kikar-msg {
+          font-size: 24px;
+          line-height: 1.1;
+          letter-spacing: -2px;
+        }
+        @media (max-width: 640px) {
+          .kikar-heading {
+            font-size: clamp(70px, 22vw, 140px);
+            letter-spacing: -0.09em;
+          }
+          .kikar-msg {
+            font-size: clamp(16px, 4.5vw, 20px);
+            letter-spacing: -1.3px;
+          }
+          .header-logo-container {
+            top: 32px !important;
+            transform: translateX(-50%) scale(0.75) !important;
+            transform-origin: top center;
+          }
+          .center-content {
+            width: min(100% - 40px, 360px) !important;
+            gap: 28px !important;
+          }
+          .kikar-divider {
+            width: 100% !important;
+          }
+        }
+        .raw-input {
+          background: transparent;
+          border: none;
+          border-bottom: 1px solid rgba(255,255,255,0.3);
+          color: white;
+          font-family: "Geist Mono:SemiBold", monospace;
+          font-size: 16px;
+          padding: 8px 0;
+          width: 100%;
+          outline: none;
+          border-radius: 0;
+          transition: border-color 0.2s;
+        }
+        .raw-input:focus {
+          border-bottom-color: white;
+        }
+        .raw-input::placeholder {
+          color: rgba(255,255,255,0.3);
+        }
+        .raw-btn {
+          background: white;
+          color: black;
+          border: none;
+          font-family: "Geist Mono:SemiBold", monospace;
+          font-size: 16px;
+          padding: 10px 24px;
+          cursor: pointer;
+          margin-top: 16px;
+          width: 100%;
+          transition: opacity 0.2s;
+        }
+        .raw-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      `}</style>
+      
+      <video
+        src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260801_001207_ec20d138-aa45-4b2b-ab8c-bdc71607f240.mp4"
+        autoPlay
+        loop
+        muted
+        playsInline
+        aria-hidden="true"
         style={{
-          maxWidth: 380,
-          backdropFilter: "blur(24px)",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.8)",
-          display: "block",
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          opacity: 1,
+          zIndex: 0
+        }}
+      />
+
+      {/* HEADER LOGO */}
+      <div 
+        className="header-logo-container"
+        aria-label="LGPSM"
+        style={{
+          position: "absolute",
+          top: 80,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: 233,
+          height: 40,
+          zIndex: 10,
+          display: "flex",
+          alignItems: "center"
         }}
       >
-        <ElectricBorder
-          color="hsl(119, 99%, 46%)"
-          speed={1.4}
-          chaos={0.14}
-          borderRadius={20}
-          style={{
-            width: "100%",
-            background: "transparent",
-            border: "none",
+        <svg viewBox="0 0 54 40" fill="none" aria-hidden="true" style={{ width: 54, height: 40, flexShrink: 0 }}>
+          <path d="M38 0H26V12H38V0Z" fill="white"/>
+          <path d="M54 12H38V28H54V12Z" fill="white"/>
+          <path d="M38 28H26V40H38V28Z" fill="white"/>
+          <path d="M26 12H16V22H26V12Z" fill="white"/>
+          <path d="M16 22H8V30H16V22Z" fill="white"/>
+          <path d="M16 2H6V12H16V2Z" fill="white"/>
+          <path d="M6 12H0V18H6V12Z" fill="white"/>
+        </svg>
+        <svg viewBox="0 0 164.311 100" fill="none" aria-hidden="true" style={{ width: 164.311, height: 100, marginLeft: 14, flexShrink: 0 }}>
+          <path d="M122.498 37.4573H131.321L139.533 51.6222L147.772 37.4573H156.595V56.0604H152.449V37.6433L141.739 56.0604H137.354L126.617 37.6433V56.0604H122.498V37.4573ZM95.921 48.8317C92.785 48.8317 90.261 46.307 90.261 43.1445C90.261 40.0086 92.785 37.4573 95.921 37.4573H119.972V41.6031H95.921C95.071 41.6031 94.38 42.2941 94.38 43.1445C94.38 44.0215 95.071 44.7125 95.921 44.7125H114.285C117.421 44.7125 119.972 47.2372 119.972 50.3997C119.972 53.5357 117.421 56.0604 114.285 56.0604H90.261V51.9411H114.285C115.136 51.9411 115.827 51.2501 115.827 50.3997C115.827 49.5227 115.136 48.8317 114.285 48.8317H95.921ZM80.857 37.4573C84.843 37.4573 88.086 40.6995 88.086 44.7125C88.086 48.6989 84.843 51.9411 80.857 51.9411H62.254V56.0604H58.135V37.4573H80.857ZM80.83 47.7953C82.558 47.7953 83.94 46.4133 83.94 44.7125C83.94 42.985 82.558 41.6031 80.83 41.6031H62.254V47.7953H80.83ZM35.975 41.6031C33.105 41.6031 30.7927 43.9152 30.7927 46.7588C30.7927 49.629 33.105 51.9411 35.975 51.9411H51.336V48.6989H35.576V44.5796H55.482V56.0604H35.975C30.8192 56.0604 26.6734 51.9145 26.6734 46.7588C26.6734 41.6297 30.8192 37.4573 35.975 37.4573H55.482V41.6031H35.975ZM0 56.0604V37.4573H4.1192V51.9411H24.9281V56.0604H0ZM164.311 36.4177C164.311 37.7529 163.228 38.8354 161.893 38.8354C160.558 38.8354 159.475 37.7529 159.475 36.4177C159.475 35.0824 160.558 34 161.893 34C163.228 34 164.311 35.0824 164.311 36.4177Z" fill="white"/>
+        </svg>
+      </div>
+
+      <div 
+        className="center-content geist-mono"
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          width: 483,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          textAlign: "center",
+          gap: 44,
+          zIndex: 10
+        }}
+      >
+        <h1 
+          className="kikar-heading text-gradient" 
+          style={{ 
+            margin: 0, 
+            fontWeight: 600, 
+            paddingBottom: 20 
           }}
         >
-          <div style={{
-            padding: "36px 28px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 14,
-            position: "relative",
-            zIndex: 2,
-          }}>
-
-          {/* Logo */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginBottom: 6 }}>
-            <div style={{
-              width: 52,
-              height: 52,
-              borderRadius: 16,
-              background: "hsla(119,99%,46%,0.15)",
-              border: "1px solid hsla(119,99%,46%,0.35)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 24,
-              boxShadow: "0 0 24px hsla(119,99%,46%,0.2)",
-            }}>✦</div>
-            <div style={{ textAlign: "center" }}>
-              <h1 style={{
-                margin: 0,
-                fontSize: 22,
-                fontWeight: 700,
-                color: "#f0f0f0",
-                letterSpacing: "-0.03em",
-              }}>
-                KIKAR <span style={{ color: "hsl(119,99%,46%)" }}>AI</span>
-              </h1>
-              <p style={{
-                margin: "4px 0 0",
-                color: "#888",
-                fontSize: 13,
-                fontWeight: 400,
-              }}>
-                {authMode === "login" ? "Sign in to your account" : "Create a new account"}
-              </p>
+          KIKAR
+        </h1>
+        
+        <div className="kikar-divider" style={{ width: 425, height: 1, background: "white" }} />
+        
+        <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 24, alignItems: "center" }}>
+          <p className="kikar-msg" style={{ margin: 0, color: "white", fontWeight: 600 }}>
+            Clone real messaging styles into dynamic digital human replicas.
+          </p>
+          
+          <form onSubmit={handleAuth} style={{ width: "100%", maxWidth: 320, display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+            <div style={{ display: "flex", gap: 16, justifyContent: "center", marginBottom: 8 }}>
+              <button 
+                type="button" 
+                onClick={() => setAuthMode("login")}
+                style={{ background: "none", border: "none", color: authMode === "login" ? "white" : "rgba(255,255,255,0.4)", fontFamily: "inherit", fontSize: 14, cursor: "pointer", fontWeight: 600, padding: 0 }}
+              >Sign In</button>
+              <button 
+                type="button" 
+                onClick={() => setAuthMode("signup")}
+                style={{ background: "none", border: "none", color: authMode === "signup" ? "white" : "rgba(255,255,255,0.4)", fontFamily: "inherit", fontSize: 14, cursor: "pointer", fontWeight: 600, padding: 0 }}
+              >Create Account</button>
             </div>
-          </div>
-
-          {/* Tabs */}
-          <div style={{
-            display: "flex",
-            borderRadius: 10,
-            overflow: "hidden",
-            border: "1px solid rgba(255,255,255,0.08)",
-            background: "#0d0d0d",
-          }}>
-            {(["login", "signup"] as const).map(m => (
-              <button key={m}
-                onClick={() => { setAuthMode(m); setAuthError("") }}
-                style={{
-                  flex: 1,
-                  padding: "10px 0",
-                  background: authMode === m ? "hsla(119,99%,46%,0.12)" : "transparent",
-                  border: authMode === m ? "1px solid hsla(119,99%,46%,0.3)" : "none",
-                  color: authMode === m ? "hsl(119,99%,46%)" : "#888",
-                  cursor: "pointer",
-                  fontSize: 13,
-                  fontWeight: authMode === m ? 600 : 400,
-                  fontFamily: "'Sora', sans-serif",
-                  transition: "all 0.18s ease",
-                }}>
-                {m === "login" ? "Sign In" : "Sign Up"}
-              </button>
-            ))}
-          </div>
-
-          {/* Email input */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-            <label style={{
-              fontSize: 11,
-              color: "#888",
-              fontWeight: 600,
-              textTransform: "uppercase",
-              letterSpacing: "0.07em",
-              marginBottom: 6,
-            }}>Email</label>
-            <input
-              style={{
-                width: "100%",
-                padding: "11px 14px",
-                background: "#0d0d0d",
-                border: "1px solid rgba(255,255,255,0.08)",
-                borderRadius: 10,
-                color: "#f0f0f0",
-                fontSize: 14,
-                fontFamily: "'Sora', sans-serif",
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-              placeholder="you@example.com"
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleAuth()}
+            <input 
+              type="email" 
+              placeholder="Email address" 
+              className="raw-input" 
+              value={email} 
+              onChange={e => setEmail(e.target.value)} 
+              required 
             />
-          </div>
-
-          {/* Password input */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-            <label style={{
-              fontSize: 11,
-              color: "#888",
-              fontWeight: 600,
-              textTransform: "uppercase",
-              letterSpacing: "0.07em",
-              marginBottom: 6,
-            }}>Password</label>
-            <input
-              style={{
-                width: "100%",
-                padding: "11px 14px",
-                background: "#0d0d0d",
-                border: "1px solid rgba(255,255,255,0.08)",
-                borderRadius: 10,
-                color: "#f0f0f0",
-                fontSize: 14,
-                fontFamily: "'Sora', sans-serif",
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-              placeholder="••••••••"
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleAuth()}
+            <input 
+              type="password" 
+              placeholder="Password" 
+              className="raw-input" 
+              value={password} 
+              onChange={e => setPassword(e.target.value)} 
+              required 
             />
-          </div>
-
-          {/* Error message */}
-          {authError && (
-            <div style={{
-              padding: "10px 14px",
-              background: "rgba(248,113,113,0.1)",
-              border: "1px solid rgba(248,113,113,0.25)",
-              borderRadius: 8,
-              color: "#f87171",
-              fontSize: 13,
-              lineHeight: 1.5,
-            }}>{authError}</div>
-          )}
-
-          {/* Signup hint */}
-          {authMode === "signup" && (
-            <p style={{
-              color: "#888",
-              fontSize: 12,
-              margin: 0,
-              lineHeight: 1.5,
-              padding: "8px 12px",
-              background: "rgba(255,255,255,0.03)",
-              borderRadius: 8,
-              border: "1px solid rgba(255,255,255,0.06)",
-            }}>
-              ✉ Check your email to confirm your account after signing up.
-            </p>
-          )}
-
-          {/* CTA Button */}
-          <button
-            style={{
-              padding: "13px 0",
-              background: authLoading
-                ? "rgba(255,255,255,0.06)"
-                : "linear-gradient(135deg, hsl(119,99%,46%) 0%, hsl(119,99%,38%) 100%)",
-              border: "none",
-              borderRadius: 10,
-              fontWeight: 700,
-              fontSize: 14,
-              cursor: authLoading ? "not-allowed" : "pointer",
-              color: authLoading ? "#888" : "#0a0a0a",
-              marginTop: 4,
-              fontFamily: "'Sora', sans-serif",
-              letterSpacing: "0.01em",
-              transition: "opacity 0.15s, transform 0.12s",
-              boxShadow: authLoading ? "none" : "0 4px 24px hsla(119,99%,46%,0.25)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-            }}
-            onClick={handleAuth}
-            disabled={authLoading}
-          >
-            {authLoading ? (
-              <>
-                <span style={{
-                  width: 14,
-                  height: 14,
-                  borderRadius: "50%",
-                  border: "2px solid #888",
-                  borderTopColor: "transparent",
-                  display: "inline-block",
-                  animation: "spin 0.7s linear infinite",
-                }} />
-                {authMode === "login" ? "Signing in…" : "Creating account…"}
-              </>
-            ) : (
-              authMode === "login" ? "Sign In →" : "Create Account →"
-            )}
-          </button>
-
+            {authError && <div style={{ color: "#ff4444", fontSize: 12, marginTop: 4 }}>{authError}</div>}
+            <button type="submit" className="raw-btn" disabled={authLoading}>
+              {authLoading ? "WAIT..." : authMode === "login" ? "ENTER" : "JOIN"}
+            </button>
+          </form>
         </div>
-        </ElectricBorder>
-      </GlareHover>
-    </div>
+      </div>
+
+      <div style={{ position: "absolute", bottom: 24, left: 0, right: 0, textAlign: "center", zIndex: 10 }}>
+        <Link href="/privacy" style={{ color: "rgba(255,255,255,0.4)", textDecoration: "none", fontSize: 12, fontFamily: "'Geist Mono:SemiBold', monospace", textTransform: "uppercase", letterSpacing: 2 }}>
+          Privacy Policy
+        </Link>
+      </div>
+    </main>
   )
 }

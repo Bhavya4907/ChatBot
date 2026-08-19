@@ -38,9 +38,11 @@ export default function ChatWindow({
 
     try {
       const { data: insertedUserMsg } = await supabase.from("messages").insert(userMsg).select().single()
-      const history = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }))
+      const fullHistory = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }))
+      // Prevent context window overflow by keeping only the last 20 messages
+      const history = fullHistory.slice(-20)
       
-      const res = await fetch("/api/chat", {
+      const res = await fetch("https://kikkar.vercel.app/api/chat", {
         method: "POST", 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: history, systemPrompt: activeChar.system_prompt })
