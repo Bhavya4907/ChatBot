@@ -25,10 +25,8 @@ export default function DMWindow({
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const other = activeConvo.user1_id === session.user.id
-    ? activeConvo.user2
-    : activeConvo.user1
-  const otherProfile = allProfiles.find((p: any) => p.id === other?.id)
+  const other = activeConvo?.user1_id === session?.user?.id ? activeConvo?.user2 : activeConvo?.user1
+  const otherProfile = allProfiles.find((p: any) => p.id === other?.id) || other
 
   useEffect(() => {
     if (!activeConvo) return
@@ -265,10 +263,12 @@ export default function DMWindow({
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 600, color: T.text, letterSpacing: "-0.02em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {other?.display_name || other?.username || "Direct Chat"}
+            {otherProfile?.display_name || otherProfile?.username || "Direct Chat"}
           </div>
           <div style={{ fontSize: 11, color: otherProfile?.is_online ? "#22c55e" : T.muted, marginTop: 2 }}>
-            {otherProfile?.is_online ? "● Online" : "● Offline"}
+            {otherProfile?.is_online ? "● Online" : otherProfile?.last_seen 
+              ? `Last seen ${new Date(otherProfile.last_seen).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` 
+              : "● Offline"}
           </div>
         </div>
 
@@ -427,24 +427,42 @@ export default function DMWindow({
                   alignItems: "flex-end",
                   gap: 8,
                   marginBottom: 4,
+                  position: "relative",
                 }}
               >
+                {!isUser && (
+                  <div style={{ paddingBottom: 16 }}> 
+                    {other?.avatar_url ? (
+                      <img 
+                        src={other.avatar_url} 
+                        style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover" }} 
+                      />
+                    ) : (
+                      <div style={{
+                        width: 28, height: 28, borderRadius: "50%", 
+                        background: T.surface, border: `1px solid ${T.border}`,
+                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14
+                      }}>
+                        👤
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div style={{ 
                   display: "flex", 
                   flexDirection: "column", 
                   alignItems: isUser ? "flex-end" : "flex-start",
-                  maxWidth: "70%",
+                  maxWidth: "75%",
                 }}>
                   <div
                     className="cc-bubble"
                     style={{
-                      padding: isImage ? 4 : "10px 14px",
-                      borderRadius: 14,
-                      lineHeight: 1.55,
-                      fontSize: 14,
+                      padding: isImage ? 4 : "10px 16px",
+                      borderRadius: isImage ? 14 : isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                      lineHeight: 1.6,
+                      fontSize: 14.5,
                       wordBreak: "break-word",
-                      borderBottomRightRadius: isUser ? 4 : 14,
-                      borderBottomLeftRadius: isUser ? 14 : 4,
                       background: isImage
                         ? "transparent"
                         : isUser
@@ -452,9 +470,10 @@ export default function DMWindow({
                         : T.surface,
                       color: isUser ? T.primaryFg : T.text,
                       border: isUser || isImage ? "none" : `1px solid ${T.border}`,
-                      boxShadow: isUser ? "0 2px 12px hsla(119,99%,46%,0.2)" : "none",
-                      fontWeight: isUser ? 500 : 400,
+                      boxShadow: isUser ? "0 2px 10px hsla(119,99%,46%,0.25)" : "0 1px 2px rgba(0,0,0,0.05)",
+                      fontWeight: 400,
                       animation: "fade-in 0.2s ease both",
+                      whiteSpace: "pre-wrap",
                     }}
                   >
                     {isImage

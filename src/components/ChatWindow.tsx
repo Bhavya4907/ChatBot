@@ -505,34 +505,52 @@ export default function ChatWindow({
               style={{
                 display: "flex",
                 flexDirection: isUser ? "row-reverse" : "row",
-                alignItems: "center",
+                alignItems: "flex-end", // Align toolbar to bottom
                 gap: 8,
-                maxWidth: "80%",
+                maxWidth: "85%", // Slightly wider max-width
                 alignSelf: isUser ? "flex-end" : "flex-start",
                 position: "relative",
               }}
             >
+              {/* AI Avatar */}
+              {!isUser && (
+                <div style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  background: "hsla(119,99%,46%,0.1)",
+                  border: "1px solid hsla(119,99%,46%,0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 14,
+                  flexShrink: 0,
+                  marginBottom: 2,
+                }}>
+                  {activeChar.emoji}
+                </div>
+              )}
+
               {/* Message Bubble */}
               <div
                 className="cc-bubble"
                 style={{
-                  padding: isImage ? 4 : "10px 14px",
-                  borderRadius: 14,
-                  lineHeight: 1.55,
-                  fontSize: 14,
+                  padding: isImage ? 4 : "10px 16px",
+                  borderRadius: isImage ? 14 : isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                  lineHeight: 1.6,
+                  fontSize: 14.5,
                   wordBreak: "break-word",
-                  borderBottomRightRadius: isUser ? 4 : 14,
-                  borderBottomLeftRadius: isUser ? 14 : 4,
                   background: isImage
                     ? "transparent"
                     : isUser
                     ? "linear-gradient(135deg, hsl(119,99%,46%) 0%, hsl(119,99%,38%) 100%)"
                     : T.surface,
                   color: isUser ? T.primaryFg : T.text,
-                  border: isUser ? "none" : `1px solid ${T.border}`,
-                  boxShadow: isUser ? "0 2px 12px hsla(119,99%,46%,0.2)" : "none",
-                  fontWeight: isUser ? 500 : 400,
+                  border: isUser || isImage ? "none" : `1px solid ${T.border}`,
+                  boxShadow: isUser ? "0 2px 10px hsla(119,99%,46%,0.25)" : "0 1px 2px rgba(0,0,0,0.05)",
+                  fontWeight: 400,
                   animation: "fade-in 0.2s ease both",
+                  whiteSpace: "pre-wrap", // Preserve line breaks!
                 }}
               >
                 {isImage ? (
