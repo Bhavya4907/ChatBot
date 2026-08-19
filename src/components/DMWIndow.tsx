@@ -78,11 +78,33 @@ export default function DMWindow({
     if (!input.trim() || !activeConvo || !session) return
     const msgContent = input.trim()
     setInput("")
-    await supabase.from("direct_messages").insert({
+    
+    // Optimistic update — show message immediately
+    const tempId = `temp-${Date.now()}`
+    const tempMsg = {
+      id: tempId,
+      conversation_id: activeConvo.id,
+      sender_id: session.user.id,
+      content: msgContent,
+      created_at: new Date().toISOString(),
+      read_at: null,
+    }
+    setDirectMessages(prev => [...prev, tempMsg])
+
+    const { data, error } = await supabase.from("direct_messages").insert({
       conversation_id: activeConvo.id,
       sender_id: session.user.id,
       content: msgContent
-    })
+    }).select().single()
+
+    if (error) {
+      // Roll back optimistic update on failure
+      setDirectMessages(prev => prev.filter(m => m.id !== tempId))
+      console.error("Failed to send message:", error)
+    } else if (data) {
+      // Replace temp message with real one
+      setDirectMessages(prev => prev.map(m => m.id === tempId ? data : m))
+    }
   }
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
